@@ -1,0 +1,3 @@
+[submodule "realsense-core"]
+	path = realsense-core
+	url = https://github.com/Rennschnitzl/realsense-core.git
