@@ -1,19 +1,16 @@
 #include "camerawrapper.h"
 
 CameraWrapper::CameraWrapper(int filtermode)
+    : height(480), width(640), factor(31.25), offset(0.5), depthcam(std::make_unique<CameraDriver>("/dev/video2", 0x49524e49))
+	// depthcam(new CameraDriver("/dev/video2", 0x49524e49))
+	, slptm()
 {
-    height = 480;
-    width = 640;
-    factor = 31.25;
-    offset = 0.5;
-
-
     loadCameraMatrix();
     slptm.tv_sec = 0;
     slptm.tv_nsec = 50000000;      //1000 ns = 1 us
 
     //CameraDriver *colorcam = new CameraDriver("/dev/video1", 0x56595559);
-    depthcam = new CameraDriver("/dev/video2", 0x49524e49);
+   
     //colorcam->startVideo();
     depthcam->startVideo();
     sleep(1);
@@ -48,8 +45,10 @@ void CameraWrapper::displayCameraProperties()
     double focalLength;
     cv::Point2d principalPoint;
     double aspectRatio;
-    calibrationMatrixValues(cameraMatrix, cvSize(640,480), apertureWidth, apertureHeight, fovx, fovy, focalLength, principalPoint, aspectRatio);
-    std::cout << "Camera-Matrix Data:" << "\nAperture (W/H): " << apertureWidth << " / " << apertureHeight << "\nFoV (x/y): "
+    
+	calibrationMatrixValues(cameraMatrix, cvSize(640,480), apertureWidth, apertureHeight, fovx, fovy, focalLength, principalPoint, aspectRatio);
+    
+	std::cout << "Camera-Matrix Data:" << "\nAperture (W/H): " << apertureWidth << " / " << apertureHeight << "\nFoV (x/y): "
               << fovx << " / " << fovy << "\nPrincipal point: " << principalPoint << "\nAspect ratio: " << aspectRatio << std::endl;
 }
 
@@ -62,14 +61,16 @@ void CameraWrapper::recordStack(int frames, std::vector<cv::Mat> &irlist, std::v
 
     std::vector<std::vector<u_int16_t> > depth;
     std::vector<std::vector<u_int8_t> > ir;
+	
     for(int i=0; i<frames; i++)
     {
-        nanosleep(&slptm,NULL);
+        nanosleep(&slptm, nullptr);
         //colorcam->updateData(&rgbimage);
         while(!depthcam->updateDataIR(depth, ir))
         {
             std::cout << "error getting frame, retrying.." << std::endl;
         }
+		
         irlist.push_back(convertIRtoCV(ir));
         depthlist.push_back(convertDepthtoCV(depth));
     }
@@ -96,7 +97,7 @@ void CameraWrapper::clearBuffer()
     // clear buffer
     for(int i = 0; i<3; i++)
     {
-        nanosleep(&slptm,NULL);
+        nanosleep(&slptm, nullptr);
         //colorcam->updateData(&rgbimage);
         depthcam->updateDataIR(depth, ir);
     }
