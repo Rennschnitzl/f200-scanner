@@ -1,8 +1,9 @@
 #include "camerawrapper.h"
 
 CameraWrapper::CameraWrapper(int filtermode)
-    : height(480), width(640), factor(31.25), offset(0.5), depthcam(std::make_unique<CameraDriver>("/dev/video2", 0x49524e49))
-	// depthcam(new CameraDriver("/dev/video2", 0x49524e49))
+    : height(480), width(640), factor(31.25), offset(0.5),
+      //depthcam(std::make_<CameraDriver>("/dev/video2", 0x49524e49))
+    depthcam(new CameraDriver("/dev/video2", 0x49524e49))
 	, slptm()
 {
     loadCameraMatrix();

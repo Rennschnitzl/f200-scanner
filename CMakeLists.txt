@@ -1,5 +1,10 @@
 project(f200-scanner)
 cmake_minimum_required(VERSION 2.8)
+
+if(UNIX)
+    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=gnu++0x")
+endif()
+
 aux_source_directory(. SRC_LIST)
 aux_source_directory(./realsense-core RSC_SRC_LIST)
 find_package(OpenCV 2.4.9 REQUIRED )
