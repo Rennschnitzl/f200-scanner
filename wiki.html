@@ -143,6 +143,8 @@ Error message and password prompt
 
 <li>$:/themes/tiddlywiki/vanilla</li>
 
+<li>class:CameraWrapper</li>
+
 <li>class:Frame</li>
 
 </ul>
@@ -6216,8 +6218,8 @@ Error message and password prompt
 <div created="20160111190642847" modified="20160111190644681" title="$:/SiteTitle">
 <pre>Veloscan</pre>
 </div>
-<div created="20160111191203234" modified="20160111191546490" title="$:/state/showeditpreview">
-<pre>no</pre>
+<div created="20160111191203234" modified="20160111192855124" title="$:/state/showeditpreview">
+<pre>yes</pre>
 </div>
 <div created="20160111190824347" modified="20160111190826403" title="$:/state/tab--86143343">
 <pre>$:/core/ui/ControlPanel/Plugins/Installed/Plugins</pre>
@@ -6228,7 +6230,7 @@ Error message and password prompt
 <div created="20160111190829275" modified="20160111190930795" title="$:/state/tab/sidebar--1835078512">
 <pre>$:/core/ui/SideBar/Recent</pre>
 </div>
-<div list="class:Frame" title="$:/StoryList">
+<div list="class:CameraWrapper class:Frame" title="$:/StoryList">
 <pre></pre>
 </div>
 <div plugin-type="info" title="$:/temp/info-plugin" type="application/json">
@@ -6349,6 +6351,16 @@ Error message and password prompt
         }
     }
 }</pre>
+</div>
+<div created="20160111192838662" modified="20160112082210552" tags="class" title="class:CameraWrapper">
+<pre>
+
+`CameraWrapper(int filtermode);
+~CameraWrapper();
+cv::Mat getCoeffs();
+cv::Mat getCameraMatrix();
+void displayCameraProperties();
+void recordStack(int frames, std::vector&lt;cv::Mat&gt; &amp;irlist, std::vector&lt;cv::Mat&gt; &amp;depthlist);`</pre>
 </div>
 <div created="20160111191047589" modified="20160111191555265" tags="class" title="class:Frame">
 <pre>Speichert alle Informationen zu einer einzelnen Kameraposition.
