@@ -4,10 +4,11 @@
 #include <iostream>
 #include <vector>
 #include <opencv2/opencv.hpp>
+#include <pcl/common/common_headers.h>
+
 
 //#include <highgui.h>
 //#include <time.h>
-//#include <pcl/common/common_headers.h>
 //#include <pcl/visualization/pcl_visualizer.h>
 //#include <pcl/io/io.h>
 //#include <pcl/io/pcd_io.h>
@@ -33,11 +34,10 @@ public:
     static void analyseStack(std::vector<cv::Mat> &stack, cv::Mat &believe, cv::Mat &result);
     static void averageIR(const std::vector<cv::Mat> & IRstack, cv::Mat & ir_avg);
     static double calculateVariance(std::vector<int> var_values);
-
-    //    static std::string type2str(int type);
-    //    static void undistortDepth(cv::Mat depth);
-    //    static void rescaleDepth(cv::InputArray in_in, int depth, cv::OutputArray out_out);
-    //    static void depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
+    static std::string type2str(int type);
+    static void rescaleDepth(cv::InputArray in_in, int depth, cv::OutputArray out_out);
+    static void depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
+    static void undistortDepth(const cv::Mat& in_depth, cv::Mat& out_undistortedDepth, const cv::Mat& camMatrix, const cv::Mat& coeffs);
 };
 
 #endif // CONVERTER_H
