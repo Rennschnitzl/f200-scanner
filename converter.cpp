@@ -53,11 +53,17 @@ void Converter::analyseStack(std::vector<cv::Mat> &stack, cv::Mat & believe, cv:
             double var = calculateVariance(var_values);
 
             // TODO: filter von unzuverlässigen daten. möglicherweise in neue methode auslagern
-            if(depth_zeroes < stack.size()-0 && var < 100.0)
+            if(depth_zeroes < stack.size()-1 && var < 100.0)
+            {
                 processedImageDepth.at<ushort>(i,j) = tempresult_depth/(stack.size()-depth_zeroes);
+                belief.at<uchar>(i,j) = (int)(255-((255/stack.size())*depth_zeroes));
+                //std::cout << "zeroes: "<< depth_zeroes << " belief: " << (int)belief.at<uchar>(i,j) << std::endl;
+            }
             else
+            {
                 processedImageDepth.at<ushort>(i,j) = 0;
-            belief.at<uchar>(i,j) = (int)((240/stack.size())*depth_zeroes);
+                belief.at<uchar>(i,j) = 0;
+            }
         }
     }
     believe = belief;
@@ -108,6 +114,7 @@ double Converter::calculateVariance(std::vector<int> var_values)
             sum += temp;
         }
 
+        //std::cout << "i return" << sum/(var_values.size() -2) << std::endl;
         return sum/(var_values.size() -2);
     }
     else{
@@ -143,9 +150,9 @@ void Converter::rescaleDepth(cv::InputArray in_in, int depth, cv::OutputArray ou
 }
 
 /// stolen (and modified) from opencv contribution
-void Converter::depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZ>::Ptr & cloud)
+void Converter::depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZI>::Ptr & cloud, const cv::Mat& belief)
 {
-    pcl::PointXYZ newPoint;
+    pcl::PointXYZI newPoint;
 
     const double inv_fx = double(1) / K.at<double>(0, 0);
     const double inv_fy = double(1) / K.at<double>(1, 1);
@@ -159,52 +166,93 @@ void Converter::depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointC
     else
         rescaleDepth(in_depth, CV_64F, z_mat);
 
+    // Mit precomputation
+    // 0.0413511 seconds.
+    // 0.0415454 seconds.
+
+//    // Pre-compute some constants
+//    cv::Mat_<double> x_cache(1, in_depth.cols), y_cache(in_depth.rows, 1);
+//    double* x_cache_ptr = x_cache[0], *y_cache_ptr = y_cache[0];
+//    for (int x = 0; x < in_depth.cols; ++x, ++x_cache_ptr)
+//        *x_cache_ptr = (x - ox) * inv_fx;
+//    for (int y = 0; y < in_depth.rows; ++y, ++y_cache_ptr)
+//        *y_cache_ptr = (y - oy) * inv_fy;
+
+//    y_cache_ptr = y_cache[0];
 
 
-    // Pre-compute some constants
-    cv::Mat_<double> x_cache(1, in_depth.cols), y_cache(in_depth.rows, 1);
-    double* x_cache_ptr = x_cache[0], *y_cache_ptr = y_cache[0];
-    for (int x = 0; x < in_depth.cols; ++x, ++x_cache_ptr)
-        *x_cache_ptr = (x - ox) * inv_fx;
-    for (int y = 0; y < in_depth.rows; ++y, ++y_cache_ptr)
-        *y_cache_ptr = (y - oy) * inv_fy;
+//    for (int y = 0; y < in_depth.rows; ++y, ++y_cache_ptr)
+//    {
+//        const double* x_cache_ptr_end = x_cache[0] + in_depth.cols;
+//        const double* depth = z_mat[y];
+//        for (x_cache_ptr = x_cache[0]; x_cache_ptr != x_cache_ptr_end; ++x_cache_ptr, ++depth)
+//        {
+//            double z = *depth;
+//            if(isnan(z))
+//            {
+//                newPoint.z = std::numeric_limits<float>::quiet_NaN();
+//                newPoint.x = std::numeric_limits<float>::quiet_NaN();
+//                newPoint.y = std::numeric_limits<float>::quiet_NaN();
+//                newPoint.intensity = std::numeric_limits<float>::quiet_NaN();
+//                cloud->push_back(newPoint);
+//            }else
+//            {
+//                newPoint.z = z;
+//                newPoint.x = (*x_cache_ptr) * z * -1.0;
+//                newPoint.y = (*y_cache_ptr) * z * -1.0;
+//                //newPoint.intensity = (float)(int)belief.at<uchar>(y,x);
+//                cloud->push_back(newPoint);
+//            }
 
-    y_cache_ptr = y_cache[0];
+//        }
+//    }
 
 
-    for (int y = 0; y < in_depth.rows; ++y, ++y_cache_ptr)
+    // ohne precompute:
+    // 0.0443601 seconds.
+    // 0.0443742 seconds.
+
+    cv::imshow("fack u", belief);
+
+    for (int y = 0; y < in_depth.rows; ++y)
     {
-        const double* x_cache_ptr_end = x_cache[0] + in_depth.cols;
         const double* depth = z_mat[y];
-        for (x_cache_ptr = x_cache[0]; x_cache_ptr != x_cache_ptr_end; ++x_cache_ptr, ++depth)
+        for (int x = 0; x < in_depth.cols; ++x, ++depth)
         {
             double z = *depth;
-            if(isnan(z))
+            if(isnan(z) || z < 0.1) //
             {
-                newPoint.z = std::numeric_limits<float>::quiet_NaN();
-                newPoint.x = std::numeric_limits<float>::quiet_NaN();
-                newPoint.y = std::numeric_limits<float>::quiet_NaN();
-                cloud->push_back(newPoint);
+//                newPoint.z = std::numeric_limits<float>::quiet_NaN();
+//                newPoint.x = std::numeric_limits<float>::quiet_NaN();
+//                newPoint.y = std::numeric_limits<float>::quiet_NaN();
+//                newPoint.intensity = std::numeric_limits<float>::quiet_NaN();
+//                cloud->push_back(newPoint);
             }else
             {
+                double xmod = ((x - ox) * inv_fx);
+                double ymod = ((y - oy) * inv_fy);
                 newPoint.z = z;
-                newPoint.x = (*x_cache_ptr) * z * -1.0;
-                newPoint.y = (*y_cache_ptr) * z * -1.0;
+                newPoint.x = xmod * z * -1.0;
+                newPoint.y = ymod * z * -1.0;
+                newPoint.intensity = (int)belief.at<uchar>(y,x);
+                //std::cout << newPoint.intensity << " z: " << z << " mat " << (int)belief.at<uchar>(y,x) << std::endl;
                 cloud->push_back(newPoint);
             }
 
         }
     }
+    std::cout << "cloudsize: " << cloud->size() << std::endl;
 }
 
-void Converter::undistortDepth(const cv::Mat &in_depth, cv::Mat &out_undistortedDepth, const cv::Mat &camMatrix, const cv::Mat &coeffs)
+
+void Converter::undistortDepth(cv::Mat &in_depth, const cv::Mat &camMatrix, const cv::Mat &coeffs, cv::Mat &belief)
 {
-    cv::Mat map1, map2;
+    cv::Mat map1, map2, undistorted_depth, out_belief;
     cv::initUndistortRectifyMap(camMatrix,
                                 coeffs,
                                 cv::Mat(),
                                 camMatrix,
-// skalierung ändern            cv::getOptimalNewCameraMatrix(cw.getCameraMatrix(),
+// compute new scaling          cv::getOptimalNewCameraMatrix(cw.getCameraMatrix(),
 //                                                              cw.getCoeffs(),
 //                                                              ir_cv_rgb.size(),
 //                                                              1,
@@ -214,7 +262,7 @@ void Converter::undistortDepth(const cv::Mat &in_depth, cv::Mat &out_undistorted
                                 CV_16SC2,
                                 map1,
                                 map2);
-    cv::remap(in_depth, out_undistortedDepth, map1, map2, cv::INTER_NEAREST);
+    cv::remap(in_depth, undistorted_depth, map1, map2, cv::INTER_NEAREST);
 
     // TODO: replace magic numbers with values from calibration matrix
     // correct depth
@@ -223,7 +271,7 @@ void Converter::undistortDepth(const cv::Mat &in_depth, cv::Mat &out_undistorted
     {
         for(int y = 0; y<480; y++)
         {
-            int z = (int)out_undistortedDepth.at<ushort>(y,x);
+            int z = (int)undistorted_depth.at<ushort>(y,x);
             // calculate alpha, x axis
             double tanx = (0.44*fabs(x-328.001)) / 205;
             double atanx = atan(tanx); // (result in radians)
@@ -236,8 +284,14 @@ void Converter::undistortDepth(const cv::Mat &in_depth, cv::Mat &out_undistorted
             // calculate side b, y axis
             sideb = cos(atanx) * sideb;
 
-            out_undistortedDepth.at<ushort>(y,x) = sideb;
+            undistorted_depth.at<ushort>(y,x) = sideb;
 
         }
     }
+
+    // undistort belief-map
+    cv::remap(belief, out_belief, map1, map2, cv::INTER_NEAREST);
+
+    belief = out_belief;
+    in_depth = undistorted_depth;
 }

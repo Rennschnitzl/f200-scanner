@@ -36,8 +36,8 @@ public:
     static double calculateVariance(std::vector<int> var_values);
     static std::string type2str(int type);
     static void rescaleDepth(cv::InputArray in_in, int depth, cv::OutputArray out_out);
-    static void depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZ>::Ptr &cloud);
-    static void undistortDepth(const cv::Mat& in_depth, cv::Mat& out_undistortedDepth, const cv::Mat& camMatrix, const cv::Mat& coeffs);
+    static void depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud, const cv::Mat& belief);
+    static void undistortDepth(cv::Mat &in_depth, const cv::Mat &camMatrix, const cv::Mat &coeffs, cv::Mat &belief);
 };
 
 #endif // CONVERTER_H
