@@ -19,6 +19,8 @@ CameraWrapper::CameraWrapper(int filtermode)
     // set video settings to 11 patterns and raw values
     depthcam->setIvcamSetting(0);
     depthcam->setFilterSetting(filtermode);
+    // TODO: find good laser power, max 16
+    depthcam->setLaserPower(16);
 }
 
 CameraWrapper::~CameraWrapper()
@@ -65,7 +67,7 @@ void CameraWrapper::recordStack(int frames, std::vector<cv::Mat> &irlist, std::v
 	
     for(int i=0; i<frames; i++)
     {
-        nanosleep(&slptm, nullptr);
+        nanosleep(&slptm, NULL);
         //colorcam->updateData(&rgbimage);
         while(!depthcam->updateDataIR(depth, ir))
         {
@@ -90,7 +92,7 @@ void CameraWrapper::loadCameraMatrix()
     displayCameraProperties();
 }
 
-// TODO find easier way
+// TODO find easier way, should be a way to empty the buffer with commands
 void CameraWrapper::clearBuffer()
 {
     std::vector<std::vector<u_int16_t> > depth;
@@ -98,7 +100,7 @@ void CameraWrapper::clearBuffer()
     // clear buffer
     for(int i = 0; i<3; i++)
     {
-        nanosleep(&slptm, nullptr);
+        nanosleep(&slptm, NULL);
         //colorcam->updateData(&rgbimage);
         depthcam->updateDataIR(depth, ir);
     }

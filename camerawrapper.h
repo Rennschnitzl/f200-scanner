@@ -29,7 +29,7 @@ private:
     double factor;
     double offset;
 	
-    std::unique_ptr<CameraDriver> depthcam;
+    CameraDriver* depthcam;
 	
 	timespec slptm;
     cv::Mat cameraMatrix;

@@ -1,9 +1,9 @@
 project(f200-scanner)
 cmake_minimum_required(VERSION 2.8)
 
-if(UNIX)
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++0x") #-Wall
-endif()
+#if(UNIX)
+#    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++0x") #-Wall
+#endif()
 
 aux_source_directory(. SRC_LIST)
 aux_source_directory(./realsense-core RSC_SRC_LIST)
