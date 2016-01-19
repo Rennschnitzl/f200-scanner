@@ -1,5 +1,6 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <math.h>
 #include "camerawrapper.h"
 #include "frame.h"
 #include "converter.h"
@@ -8,23 +9,33 @@
 #include <pcl/common/common_headers.h>
 #include <pcl/point_types.h>
 #include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/filters/statistical_outlier_removal.h>
 
 
 #define RECORD_STACK_SIZE 40
 #define IMAGE_HEIGHT 480
 #define IMAGE_WIDTH 640
 
+float lastx = 0.0, lasty = 0.0, lastz = 0.0;
+
 using namespace std;
 
 void pp_callback(const pcl::visualization::PointPickingEvent& event, void* viewer_void)
 {
-   std::cout << "Picking event active" << std::endl;
-   if(event.getPointIndex()!=-1)
-   {
-       float x,y,z;
-       event.getPoint(x,y,z);
-       std::cout << x<< ";" << y<<";" << z << std::endl;
-   }
+    //std::cout << "Picking event active" << std::endl;
+    if(event.getPointIndex()!=-1)
+    {
+        float x,y,z;
+        event.getPoint(x,y,z);
+        // http://www.calculatorsoup.com/calculators/geometry-solids/distance-two-points.php ;)
+        std::cout << x<< "," << y<<"," << z << std::endl;
+
+        long double distance=sqrt(pow(x-lastx,2.0)+pow(y-lasty,2.0)+pow(z-lastz,2.0));
+        lastx = x;
+        lasty = y;
+        lastz = z;
+        std::cout << "euclidean Distance to last point: " << distance << std::endl;
+    }
 }
 
 void display(Frame frame1)
@@ -73,19 +84,25 @@ int main()
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(1.0, "Origin");
 
-//    // filter cloud
-//    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZI>);
+    // filter cloud
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZI>);
 //    pcl::RadiusOutlierRemoval<pcl::PointXYZI> outrem;
 //    // build the filter
 //    outrem.setInputCloud(cloudptr);
-//    outrem.setRadiusSearch(0.8);
-//    outrem.setMinNeighborsInRadius (10);
+//    outrem.setRadiusSearch(0.15);
+//    outrem.setMinNeighborsInRadius (5);
 //    // apply filter
 //    outrem.filter (*cloud_filtered);
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
+    sor.setInputCloud (cloudptr);
+    sor.setMeanK (50);
+    sor.setStddevMulThresh (1.0);
+    sor.filter (*cloud_filtered);
+    std::cout << "filter removed " << (cloudptr->size() - cloud_filtered->size()) << " points" << std::endl;
 
     // add point cloud
-    pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity_distribution(cloudptr, "intensity");
-    viewer->addPointCloud<pcl::PointXYZI>(cloudptr,intensity_distribution,"frame");
+    pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity_distribution(cloud_filtered, "intensity");
+    viewer->addPointCloud<pcl::PointXYZI>(cloud_filtered,intensity_distribution,"frame");
 
     cv::waitKey(0);
 
