@@ -7,13 +7,25 @@
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/common/common_headers.h>
 #include <pcl/point_types.h>
+#include <pcl/filters/radius_outlier_removal.h>
 
 
-#define RECORD_STACK_SIZE 5
+#define RECORD_STACK_SIZE 40
 #define IMAGE_HEIGHT 480
 #define IMAGE_WIDTH 640
 
 using namespace std;
+
+void pp_callback(const pcl::visualization::PointPickingEvent& event, void* viewer_void)
+{
+   std::cout << "Picking event active" << std::endl;
+   if(event.getPointIndex()!=-1)
+   {
+       float x,y,z;
+       event.getPoint(x,y,z);
+       std::cout << x<< ";" << y<<";" << z << std::endl;
+   }
+}
 
 void display(Frame frame1)
 {
@@ -30,6 +42,7 @@ void display(Frame frame1)
 
     cv::imshow("depth", depth_cv_rgb);
     cv::imshow("ir", ir_cv_rgb);
+    cv::imshow("belief", frame1.belief);
 }
 
 int main()
@@ -41,42 +54,38 @@ int main()
     cw.recordStack(RECORD_STACK_SIZE,frame1.rawStackIR, frame1.rawStackDepth);
     Converter::analyseStack(frame1.rawStackDepth, frame1.belief, frame1.processedImageDepth);
     Converter::averageIR(frame1.rawStackIR, frame1.processedImageIR);
-    cv::Mat rview;
-    Converter::undistortDepth(frame1.processedImageDepth, rview, frame1.cameraMatrix, frame1.coefficients);
-
-    // SAVE IMAGES TO DISK
-    imwrite( "processed.png", frame1.processedImageDepth );
-    imwrite( "undistorted.png", rview );
+    Converter::undistortDepth(frame1.processedImageDepth, frame1.cameraMatrix, frame1.coefficients, frame1.belief);
 
     // CONVERT TO CLOUD
-    pcl::PointCloud<pcl::PointXYZ> cloudpro;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloudptrpro;
-    cloudptrpro = cloudpro.makeShared();
-    Converter::depthTo3d(frame1.processedImageDepth,cw.getCameraMatrix(),cloudptrpro);
-
-    pcl::PointCloud<pcl::PointXYZ> cloudund;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloudptrund;
-    cloudptrund = cloudund.makeShared();
-    Converter::depthTo3d(rview,cw.getCameraMatrix(),cloudptrund);
+    pcl::PointCloud<pcl::PointXYZI> cloud;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr;
+    cloudptr = cloud.makeShared();
+    Converter::depthTo3d(frame1.processedImageDepth,cw.getCameraMatrix(),cloudptr, frame1.belief);
 
     // DISPLAY
     display(frame1);
-    cv::imshow("undistorted", rview);
-
 
     // PCL VIEWER
     Eigen::Affine3f transform = Eigen::Affine3f::Identity();
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZ>);
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    viewer->registerPointPickingCallback(pp_callback, (void*)&viewer);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
-    viewer->addPointCloud<pcl::PointXYZ> (cloudptrpro, "processed");
+    viewer->addCoordinateSystem(1.0, "Origin");
 
-    pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZ> single_color(cloudptrund, 0, 255, 0);
-    viewer->addPointCloud<pcl::PointXYZ> (cloudptrund, single_color, "undistorted");
+//    // filter cloud
+//    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZI>);
+//    pcl::RadiusOutlierRemoval<pcl::PointXYZI> outrem;
+//    // build the filter
+//    outrem.setInputCloud(cloudptr);
+//    outrem.setRadiusSearch(0.8);
+//    outrem.setMinNeighborsInRadius (10);
+//    // apply filter
+//    outrem.filter (*cloud_filtered);
 
-    viewer->addCoordinateSystem(1.0, "marker");
+    // add point cloud
+    pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity_distribution(cloudptr, "intensity");
+    viewer->addPointCloud<pcl::PointXYZI>(cloudptr,intensity_distribution,"frame");
 
     cv::waitKey(0);
 
