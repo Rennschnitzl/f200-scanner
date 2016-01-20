@@ -31,8 +31,8 @@ public:
     Eigen::Affine3f matrix;
 
     // point cloud
-    pcl::PointCloud<pcl::PointXYZ> cloud;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr cloudptr;
+    pcl::PointCloud<pcl::PointXYZI> cloud;
+    pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr;
 private:
 
 };
