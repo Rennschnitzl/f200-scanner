@@ -162,11 +162,10 @@ void statistical(pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr, pcl::PointCloud<
     std::cout << "filter removed " << (cloudptr->size() - cloud_filtered->size()) << " points" << std::endl;
 }
 
-int main()
+Frame getMeAFuckingFrame(CameraWrapper cw)
 {
-    CameraWrapper cw(0);
 
-    std::cout << "recording first frame" << std::endl;
+    std::cout << "hier kommt das voegelchen..." << std::endl;
 
     Frame frame1(IMAGE_WIDTH, IMAGE_HEIGHT, cw.getCameraMatrix(),cw.getCoeffs());
 
@@ -177,45 +176,42 @@ int main()
     Converter::undistortDepth(frame1.processedImageDepth, frame1.cameraMatrix, frame1.coefficients, frame1.belief);
 
     // CONVERT TO CLOUD
-    pcl::PointCloud<pcl::PointXYZI> cloud;
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr;
-    cloudptr = cloud.makeShared();
-    Converter::depthTo3d(frame1.processedImageDepth,cw.getCameraMatrix(),cloudptr, frame1.belief);
+    Converter::depthTo3d(frame1.processedImageDepth,cw.getCameraMatrix(),frame1.cloudptr, frame1.belief);
 
-    // DISPLAY
-    display(frame1);
+    return frame1;
+}
 
-    std::cout << "waiting for second frame" << std::endl;
-    cv::waitKey(0);
-
-    Frame frame2(IMAGE_WIDTH, IMAGE_HEIGHT, cw.getCameraMatrix(),cw.getCoeffs());
-
-    // RECORD & PROCESS
-    cw.recordStack(RECORD_STACK_SIZE,frame2.rawStackIR, frame2.rawStackDepth);
-    Converter::analyseStack(frame2.rawStackDepth, frame2.belief, frame2.processedImageDepth);
-    Converter::averageIR(frame2.rawStackIR, frame2.processedImageIR);
-    Converter::undistortDepth(frame2.processedImageDepth, frame2.cameraMatrix, frame2.coefficients, frame2.belief);
-
-    // CONVERT TO CLOUD
-    pcl::PointCloud<pcl::PointXYZI> cloud2;
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr2;
-    cloudptr2 = cloud2.makeShared();
-    Converter::depthTo3d(frame2.processedImageDepth,cw.getCameraMatrix(),cloudptr2, frame2.belief);
-
-    // DISPLAY
-    display(frame2);
-
-    cv::waitKey(0);
-
+int main()
+{
     /// **************
     /// Init viewer
     /// **************
-    Eigen::Affine3f transform = Eigen::Affine3f::Identity();
+    //Eigen::Affine3f transform = Eigen::Affine3f::Identity();
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     viewer->registerPointPickingCallback(pp_callback, (void*)&viewer);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(1.0, "Origin");
+
+    /// **************
+    /// Init other stuff
+    /// **************
+    CameraWrapper cw(0);
+    std::vector<Frame> framevector;
+    Frame savedFrame(IMAGE_WIDTH, IMAGE_HEIGHT, cw.getCameraMatrix(),cw.getCoeffs());
+
+    /// **************
+    /// Main Loop
+    /// **************
+
+    Frame temporary_frame = getMeAFuckingFrame(cw);
+    temporary_frame = getMeAFuckingFrame(cw);
+
+    // DISPLAY
+    display(temporary_frame);
+
+    cv::waitKey(0);
+
 
     /// **************
     /// Statistical outlier removal
@@ -242,16 +238,16 @@ int main()
     /// **************
     /// ICP
     /// **************
-    pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
-    icp.setInputSource(cloudptr);
-    //icp.setInputCloud(cloudptr);
-    icp.setInputTarget(cloudptr2);
-    pcl::PointCloud<pcl::PointXYZI> Final;
-    icp.align(Final);
-    std::cout << "has converged:" << icp.hasConverged() << " score: " <<
-                 icp.getFitnessScore() << std::endl;
-    std::cout << icp.getFinalTransformation() << std::endl;
-    pcl::PointCloud<pcl::PointXYZI>::Ptr Finalptr = Final.makeShared();
+//    pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
+//    icp.setInputSource(cloudptr);
+//    //icp.setInputCloud(cloudptr);
+//    icp.setInputTarget(cloudptr2);
+//    pcl::PointCloud<pcl::PointXYZI> Final;
+//    icp.align(Final);
+//    std::cout << "has converged:" << icp.hasConverged() << " score: " <<
+//                 icp.getFitnessScore() << std::endl;
+//    std::cout << icp.getFinalTransformation() << std::endl;
+//    pcl::PointCloud<pcl::PointXYZI>::Ptr Finalptr = Final.makeShared();
 
 
     /// **************
@@ -260,11 +256,50 @@ int main()
     // add point cloud
 //    pcl::visualization::PointCloudColorHandlerGenericField<pcl::PointXYZI> intensity_distribution(cloudptr, "intensity");
 //    viewer->addPointCloud<pcl::PointXYZI>(cloudptr,intensity_distribution,"framei");
-    viewer->addPointCloud<pcl::PointXYZI>(cloudptr2,"target");
-    viewer->addPointCloud<pcl::PointXYZI>(Finalptr,"frame");
+//    viewer->addPointCloud<pcl::PointXYZI>(cloudptr2,"target");
+//    viewer->addPointCloud<pcl::PointXYZI>(Finalptr,"frame");
 
-    cv::waitKey(0);
+    while(true)
+    {
+        // a => stop; rest => next frame
+        int key = cv::waitKey(0);
+        /// strange opencv workaround
+        /// see: http://stackoverflow.com/questions/9172170/python-opencv-cv-waitkey-spits-back-weird-output-on-ubuntu-modulo-256-maps-corre
+        key -= 0x100000;
+        std::cout << key << std::endl;
+        // "a"
+        if(key == 97)
+            break;
+//        if(key == 119)
+//        {
+//            viewer->updateCoordinateSystemPose("marker", mpose.inverse());
+//            viewer->updatePointCloud(fr.getCloudPointer(), "preview");
+//            viewer->updatePointCloudPose("preview", mpose.inverse());
+//            viewer->spin();
+//        }
+        // "s"
+        if(key == 115)
+        {
+            savedFrame = temporary_frame;
+            Frame temporary_frame = getMeAFuckingFrame(cw);
+            display(temporary_frame);
+        }
+//        // "i"
+//        if(key == 105)
+//        {
 
+
+//        }
+//        // "p"
+//        if(key == 112)
+//        {
+
+//        }
+
+
+    }
+    viewer->addPointCloud<pcl::PointXYZI>(temporary_frame.cloudptr,"frame1");
+    viewer->addPointCloud<pcl::PointXYZI>(savedFrame.cloudptr,"frame2");
     viewer->spin();
 
     return 0;
