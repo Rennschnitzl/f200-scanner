@@ -53,7 +53,7 @@ void Converter::analyseStack(std::vector<cv::Mat> &stack, cv::Mat & believe, cv:
             double var = calculateVariance(var_values);
 
             // TODO: filter von unzuverlässigen daten. möglicherweise in neue methode auslagern
-            if(depth_zeroes < stack.size()-1 && var < 100.0)
+            if(depth_zeroes < stack.size()-1 && var < 1000.0)
             {
                 processedImageDepth.at<ushort>(i,j) = tempresult_depth/(stack.size()-depth_zeroes);
                 belief.at<uchar>(i,j) = (int)(255-((255/stack.size())*depth_zeroes));
