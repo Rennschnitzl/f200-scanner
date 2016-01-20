@@ -162,7 +162,7 @@ void statistical(pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr, pcl::PointCloud<
     std::cout << "filter removed " << (cloudptr->size() - cloud_filtered->size()) << " points" << std::endl;
 }
 
-Frame getMeAFuckingFrame(CameraWrapper cw)
+Frame getMeAFuckingFrame(CameraWrapper &cw)
 {
 
     std::cout << "hier kommt das voegelchen..." << std::endl;
@@ -192,6 +192,10 @@ int main()
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(1.0, "Origin");
+    pcl::PointCloud<pcl::PointXYZI>::Ptr dummy (new pcl::PointCloud<pcl::PointXYZI>);
+    viewer->addPointCloud<pcl::PointXYZI> (dummy, "frame1");
+    viewer->addPointCloud<pcl::PointXYZI> (dummy, "frame2");
+
 
     /// **************
     /// Init other stuff
@@ -205,7 +209,6 @@ int main()
     /// **************
 
     Frame temporary_frame = getMeAFuckingFrame(cw);
-    temporary_frame = getMeAFuckingFrame(cw);
 
     // DISPLAY
     display(temporary_frame);
@@ -234,20 +237,6 @@ int main()
 
 //    interpolate(cloud_filtered, mls_points);
 //    viewer->addPointCloud<pcl::PointXYZINormal>(mls_ptr, "frame");
-
-    /// **************
-    /// ICP
-    /// **************
-//    pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
-//    icp.setInputSource(cloudptr);
-//    //icp.setInputCloud(cloudptr);
-//    icp.setInputTarget(cloudptr2);
-//    pcl::PointCloud<pcl::PointXYZI> Final;
-//    icp.align(Final);
-//    std::cout << "has converged:" << icp.hasConverged() << " score: " <<
-//                 icp.getFitnessScore() << std::endl;
-//    std::cout << icp.getFinalTransformation() << std::endl;
-//    pcl::PointCloud<pcl::PointXYZI>::Ptr Finalptr = Final.makeShared();
 
 
     /// **************
@@ -281,26 +270,53 @@ int main()
         if(key == 115)
         {
             savedFrame = temporary_frame;
-            Frame temporary_frame = getMeAFuckingFrame(cw);
+            temporary_frame = getMeAFuckingFrame(cw);
             display(temporary_frame);
         }
-//        // "i"
-//        if(key == 105)
-//        {
+//        // "space"
+        if(key == 32)
+        {
+            /// **************
+            /// ICP
+            /// **************
+            std::cout << "starting ICP" << std::endl;
+            pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> icp;
+            icp.setInputSource(temporary_frame.cloudptr);
+            //icp.setInputCloud(cloudptr);
+            icp.setInputTarget(savedFrame.cloudptr);
+            pcl::PointCloud<pcl::PointXYZI> Final;
+            icp.align(Final);
+            std::cout << "has converged:" << icp.hasConverged() << " score: " <<
+                         icp.getFitnessScore() << std::endl;
+            std::cout << icp.getFinalTransformation() << std::endl;
+            pcl::PointCloud<pcl::PointXYZI>::Ptr Finalptr = Final.makeShared();
 
+            pcl::visualization::PointCloudColorHandlerCustom<pcl::PointXYZI> single_color(Finalptr, 0, 255, 0);
+            viewer->updatePointCloud<pcl::PointXYZI>(Finalptr, single_color ,"frame1");
+            viewer->updatePointCloud<pcl::PointXYZI>(savedFrame.cloudptr,"frame2");
+            viewer->spin();
+        }
+        // "p"
+        if(key == 112)
+        {
+            temporary_frame = getMeAFuckingFrame(cw);
+            display(temporary_frame);
+        }
+        // "i"
+        if(key == 112)
+        {
 
-//        }
-//        // "p"
-//        if(key == 112)
-//        {
+        }
+        // "q"
+        if(key == 113)
+        {
+            break;
+        }
+        // "e"
+        if(key == 101)
+        {
 
-//        }
-
-
+        }
     }
-    viewer->addPointCloud<pcl::PointXYZI>(temporary_frame.cloudptr,"frame1");
-    viewer->addPointCloud<pcl::PointXYZI>(savedFrame.cloudptr,"frame2");
-    viewer->spin();
-
     return 0;
 }
