@@ -2,38 +2,41 @@
 #define CAMERAWRAPPER_H
 
 #include <opencv2/opencv.hpp>
-#include "realsense-core/cameradriver.h"
+#include <librealsense/rs.h>
+#include <librealsense/rsutil.h>
+#include "frame.h"
 
-#include <memory>
+//#include <memory>
 
 class CameraWrapper
 {
 public:
-    CameraWrapper(int filtermode);
+    CameraWrapper(int frames);
     ~CameraWrapper();
-    cv::Mat getCoeffs();
-    cv::Mat getCameraMatrix();
-    void displayCameraProperties();
-    void recordStack(int frames, std::vector<cv::Mat> &irlist, std::vector<cv::Mat> &depthlist);
-	
+    Frame record();
 private:
-    void loadCameraMatrix();
-    void clearBuffer();
-	
-    cv::Mat convertIRtoCV(std::vector<std::vector<u_int8_t> > ir);
-    cv::Mat convertDepthtoCV(std::vector<std::vector<u_int16_t> > depth);
-    
-private:	
-    int height;
-    int width;
-    double factor;
-    double offset;
-	
-    CameraDriver* depthcam;
-	
-	timespec slptm;
-    cv::Mat cameraMatrix;
-    cv::Mat distCoeffs;
+    cv::Mat CameraMatrix_depth;
+    cv::Mat CameraMatrix_color;
+    cv::Mat Coefficients_depth;
+    cv::Mat Coefficients_color;
+    rs_intrinsics depth_intrin;
+    rs_intrinsics color_intrin;
+    rs_extrinsics depth_to_color;
+    rs_error * e;
+    rs_context * ctx;
+    rs_device * dev;
+    cv::Mat getCameraMatrix_depth() const;
+    cv::Mat getCameraMatrix_color() const;
+    cv::Mat getCoefficients_depth() const;
+    cv::Mat getCoefficients_color() const;
+    int framesToRecord;
+    void check_error();
+    float depthScale;
+    void convertIntrinsicToOpenCV(const rs_intrinsics & in_intrinsics, cv::Mat & out_cammat, cv::Mat & out_coeffs);
+    rs_intrinsics getIntrinsicsFromOpenCV(const cv::Mat & in_cammat, const cv::Mat & in_coeffs);
+    // TODO converterfunctions for different points
+    //cv::Mat convertIRtoCV(std::vector<std::vector<u_int8_t> > ir);
+    //cv::Mat convertDepthtoCV(std::vector<std::vector<u_int16_t> > depth);
 };
 
 #endif // CAMERAWRAPPER_H

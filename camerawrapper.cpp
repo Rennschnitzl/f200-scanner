@@ -1,137 +1,174 @@
 #include "camerawrapper.h"
 
-CameraWrapper::CameraWrapper(int filtermode)
-    : height(480), width(640), factor(31.25), offset(0.5),
-      //depthcam(std::make_<CameraDriver>("/dev/video2", 0x49524e49))
-    depthcam(new CameraDriver("/dev/video2", 0x49524e49))
-	, slptm()
+//void CameraWrapper::loadCameraMatrix()
+//{
+//    std::cout << "OpenCV version : " << CV_VERSION << std::endl;
+//    std::cout << "Loading camera matrix" << std::endl;
+//    // read settings from file
+//    cv::FileStorage fs2("calibration.yml", cv::FileStorage::READ);
+//    fs2["cameraMatrix"] >> cameraMatrix;
+//    fs2["distCoeffs"] >> distCoeffs;
+
+//    // Get some infos from the calibration matrix
+//    displayCameraProperties();
+//}
+
+CameraWrapper::CameraWrapper(int frames)
 {
-    loadCameraMatrix();
-    slptm.tv_sec = 0;
-    slptm.tv_nsec = 50000000;      //1000 ns = 1 us
+    // init camera
+    e = 0;
+    ctx = rs_create_context(RS_API_VERSION, &e);
+    check_error();
+    printf("There are %d connected RealSense devices.\n", rs_get_device_count(ctx, &e));
+    check_error();
+    if(rs_get_device_count(ctx, &e) == 0) return EXIT_FAILURE;
 
-    //CameraDriver *colorcam = new CameraDriver("/dev/video1", 0x56595559);
-   
-    //colorcam->startVideo();
-    depthcam->startVideo();
-    sleep(1);
+    dev = rs_get_device(ctx, 0, &e);
+    check_error();
+    printf("\nUsing device 0, an %s\n", rs_get_device_name(dev, &e));
+    check_error();
+    printf("    Serial number: %s\n", rs_get_device_serial(dev, &e));
+    check_error();
+    printf("    Firmware version: %s\n", rs_get_device_firmware_version(dev, &e));
+    check_error();
 
-    // set video settings to 11 patterns and raw values
-    depthcam->setIvcamSetting(0);
-    depthcam->setFilterSetting(filtermode);
-    // TODO: find good laser power, max 16
-    depthcam->setLaserPower(16);
+    // set controls
+    // TODO check control presets
+    //    // set video settings to 11 patterns and raw values
+    //    depthcam->setIvcamSetting(0);
+    //    depthcam->setFilterSetting(filtermode);
+    //    // TODO: find good laser power, max 16
+    //    depthcam->setLaserPower(16);
+    rs_enable_stream_preset(dev, RS_STREAM_DEPTH, RS_PRESET_BEST_QUALITY, &e);
+    check_error();
+    rs_enable_stream_preset(dev, RS_STREAM_COLOR, RS_PRESET_BEST_QUALITY, &e);
+    check_error();
+    rs_start_device(dev, &e);
+    check_error();
+
+    // get intrinsics and convert them to opencv mat
+    rs_get_stream_intrinsics(dev, RS_STREAM_DEPTH, &depth_intrin, &e);
+    check_error();
+    rs_get_device_extrinsics(dev, RS_STREAM_DEPTH, RS_STREAM_COLOR, &depth_to_color, &e);
+    check_error();
+    rs_get_stream_intrinsics(dev, RS_STREAM_COLOR, &color_intrin, &e);
+    check_error();
+    depthScale = rs_get_device_depth_scale(dev, &e);
+    check_error();
+    convertIntrinsicToOpenCV(depth_intrin, CameraMatrix_depth, Coefficients_depth);
+    convertIntrinsicToOpenCV(color_intrin, CameraMatrix_color, Coefficients_color);
+
+    // set number of frames to record
+    this->framesToRecord = frames;
 }
 
 CameraWrapper::~CameraWrapper()
 {
-    //colorcam->stopVideo();
-    depthcam->stopVideo();
+    // deactivate camera
+    rs_disable_stream(dev,RS_STREAM_DEPTH, &e);
+    check_error();
+    rs_disable_stream(dev,RS_STREAM_COLOR, &e);
+    check_error();
+    rs_stop_device(dev, &e);
+    check_error();
 }
 
-cv::Mat CameraWrapper::getCoeffs()
+Frame CameraWrapper::record()
 {
-    return this->distCoeffs;
-}
-
-cv::Mat CameraWrapper::getCameraMatrix()
-{
-    return this->cameraMatrix;
-}
-
-void CameraWrapper::displayCameraProperties()
-{
-    double apertureWidth;
-    double apertureHeight;
-    double fovx;
-    double fovy;
-    double focalLength;
-    cv::Point2d principalPoint;
-    double aspectRatio;
-    
-	calibrationMatrixValues(cameraMatrix, cvSize(640,480), apertureWidth, apertureHeight, fovx, fovy, focalLength, principalPoint, aspectRatio);
-    
-	std::cout << "Camera-Matrix Data:" << "\nAperture (W/H): " << apertureWidth << " / " << apertureHeight << "\nFoV (x/y): "
-              << fovx << " / " << fovy << "\nPrincipal point: " << principalPoint << "\nAspect ratio: " << aspectRatio << std::endl;
-}
-
-void CameraWrapper::recordStack(int frames, std::vector<cv::Mat> &irlist, std::vector<cv::Mat> &depthlist)
-{
-    clearBuffer();
-
-    irlist.clear();
-    depthlist.clear();
-
-    std::vector<std::vector<u_int16_t> > depth;
-    std::vector<std::vector<u_int8_t> > ir;
-	
-    for(int i=0; i<frames; i++)
-    {
-        nanosleep(&slptm, NULL);
-        //colorcam->updateData(&rgbimage);
-        while(!depthcam->updateDataIR(depth, ir))
-        {
-            std::cout << "error getting frame, retrying.." << std::endl;
-        }
-		
-        irlist.push_back(convertIRtoCV(ir));
-        depthlist.push_back(convertDepthtoCV(depth));
-    }
-}
-
-void CameraWrapper::loadCameraMatrix()
-{
-    std::cout << "OpenCV version : " << CV_VERSION << std::endl;
-    std::cout << "Loading camera matrix" << std::endl;
-    // read settings from file
-    cv::FileStorage fs2("calibration.yml", cv::FileStorage::READ);
-    fs2["cameraMatrix"] >> cameraMatrix;
-    fs2["distCoeffs"] >> distCoeffs;
-
-    // Get some infos from the calibration matrix
-    displayCameraProperties();
-}
-
-// TODO find easier way, should be a way to empty the buffer with commands
-void CameraWrapper::clearBuffer()
-{
-    std::vector<std::vector<u_int16_t> > depth;
-    std::vector<std::vector<u_int8_t> > ir;
     // clear buffer
-    for(int i = 0; i<3; i++)
+    rs_wait_for_frames(dev, &e);
+    check_error();
+
+    std::vector<cv::Mat> depthstack;
+    std::vector<cv::Mat> colorstack;
+
+    // record a stack of frames
+    for(int frame = 0; frame < framesToRecord; frame++)
     {
-        nanosleep(&slptm, NULL);
-        //colorcam->updateData(&rgbimage);
-        depthcam->updateDataIR(depth, ir);
+        // wait for frames
+        rs_wait_for_frames(dev, &e);
+        check_error();
+
+        // get data
+        const uint16_t * depth_image = (const uint16_t *)rs_get_frame_data(dev, RS_STREAM_DEPTH, &e);
+        check_error();
+        const uint8_t * color_image = (const uint8_t *)rs_get_frame_data(dev, RS_STREAM_COLOR, &e);
+        check_error();
+
+        // convert depth to meters and float
+        cv::Mat depthframe = cv::Mat(depth_intrin.height, depth_intrin.width, CV_32F);
+        int dx, dy;
+        for(dy=0; dy<depth_intrin.height; ++dy)
+        {
+            for(dx=0; dx<depth_intrin.width; ++dx)
+            {
+                /* Retrieve the 16-bit depth value and map it into a depth in meters */
+                uint16_t depth_value = depth_image[dy * depth_intrin.width + dx];
+                float depth_in_meters = depth_value * scale;
+                depthframe.at<float>(dy, dx) = depth_in_meters;
+            }
+        }
+        depthstack.push_back(depthframe.clone());
+
+        // color
+        cv::Mat colorframe = cv::Mat(color_intrin.height, color_intrin.width, CV_8UC3, color_image);
+        colorstack.push_back(colorframe.clone());
+    }
+
+
+    // create Frame object
+    Frame frame1(getCameraMatrix_depth(), getCoefficients_depth(), getCameraMatrix_color(), getCoefficients_color());
+
+    // TODO remove test code
+    frame1.processedImageDepth = depthstack[0].clone();
+    frame1.processedImageIR = colorstack[0].clone();
+
+    // call averager
+
+    // fill averaged rgb and depth
+
+    // fill beliefmap
+
+    return frame1;
+}
+
+cv::Mat CameraWrapper::getCameraMatrix_depth() const
+{
+    return CameraMatrix_depth;
+}
+
+cv::Mat CameraWrapper::getCameraMatrix_color() const
+{
+    return CameraMatrix_color;
+}
+
+
+cv::Mat CameraWrapper::getCoefficients_depth() const
+{
+    return Coefficients_depth;
+}
+
+cv::Mat CameraWrapper::getCoefficients_color() const
+{
+    return Coefficients_color;
+}
+
+void CameraWrapper::check_error()
+{
+    if(e)
+    {
+        printf("rs_error was raised when calling %s(%s):\n", rs_get_failed_function(e), rs_get_failed_args(e));
+        printf("    %s\n", rs_get_error_message(e));
+        exit(EXIT_FAILURE);
     }
 }
 
-cv::Mat CameraWrapper::convertIRtoCV(std::vector<std::vector<u_int8_t> > ir)
+void CameraWrapper::convertIntrinsicToOpenCV(const rs_intrinsics &in_intrinsics, cv::Mat &out_cammat, cv::Mat &out_coeffs)
 {
-    cv::Mat ir_cv(height,width, CV_8U);
-
-    for(int j = 0 ; j < height ; j++){
-        for(int i = 0 ; i < width ; i++){
-            ir_cv.at<uchar>(j,i) = ir[j][i];
-        }
-    }
-    return ir_cv;
+    // TODO implement method
 }
 
-cv::Mat CameraWrapper::convertDepthtoCV(std::vector<std::vector<u_int16_t> > depth)
+rs_intrinsics CameraWrapper::getIntrinsicsFromOpenCV(const cv::Mat &in_cammat, const cv::Mat &in_coeffs)
 {
-    cv::Mat depth_cv(height,width, CV_16U);
 
-    for(int j = 0 ; j < height ; j++){
-        for(int i = 0 ; i < width ; i++){
-            //depth = int(depth/this->factor + this->offset); // convert to mm
-            u_int8_t high = (depth[j][i] >> 8) & 0xff;
-            u_int8_t low = depth[j][i] & 0xff;
-            cv::Vec2b depthpix_cv;
-            depthpix_cv[0] = low;
-            depthpix_cv[1] = high;
-            depth_cv.at<cv::Vec2b>(j,i) = depthpix_cv;
-        }
-    }
-    return depth_cv;
 }
