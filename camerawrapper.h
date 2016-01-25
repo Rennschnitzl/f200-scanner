@@ -4,6 +4,7 @@
 #include <opencv2/opencv.hpp>
 #include <librealsense/rs.h>
 #include <librealsense/rsutil.h>
+#include <stdio.h>
 #include "frame.h"
 
 //#include <memory>
@@ -14,13 +15,11 @@ public:
     CameraWrapper(int frames);
     ~CameraWrapper();
     Frame record();
+    void setStackSize(int frames);
 private:
-    cv::Mat CameraMatrix_depth;
-    cv::Mat CameraMatrix_color;
-    cv::Mat Coefficients_depth;
-    cv::Mat Coefficients_color;
     rs_intrinsics depth_intrin;
     rs_intrinsics color_intrin;
+    rs_intrinsics ir_intrin;
     rs_extrinsics depth_to_color;
     rs_error * e;
     rs_context * ctx;

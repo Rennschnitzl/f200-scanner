@@ -1,10 +1,67 @@
 #include "frame.h"
 
 
-Frame::Frame(cv::Mat CameraMatrix_depth, cv::Mat coeffs_depth, cv::Mat CameraMatrix_color, cv::Mat coeffs_color)
+Frame::Frame()
 {
-    this->cameraMatrix_color = CameraMatrix_color;
-    this->cameraMatrix_depth = CameraMatrix_depth;
-    this->coefficients_color = coeffs_color;
-    this->coefficients_depth = coeffs_depth;
+
 }
+
+//cv::Mat Frame::getCoefficients_ir() const
+//{
+//    return coefficients_ir;
+//}
+
+//void Frame::setCoefficients_ir(const cv::Mat &value)
+//{
+//    coefficients_ir = value;
+//}
+
+//cv::Mat Frame::getCameraMatrix_ir() const
+//{
+//    return cameraMatrix_ir;
+//}
+
+//void Frame::setCameraMatrix_ir(const cv::Mat &value)
+//{
+//    cameraMatrix_ir = value;
+//}
+
+//cv::Mat Frame::getCoefficients_color() const
+//{
+//    return coefficients_color;
+//}
+
+//void Frame::setCoefficients_color(const cv::Mat &value)
+//{
+//    coefficients_color = value;
+//}
+
+//cv::Mat Frame::getCameraMatrix_color() const
+//{
+//    return cameraMatrix_color;
+//}
+
+//void Frame::setCameraMatrix_color(const cv::Mat &value)
+//{
+//    cameraMatrix_color = value;
+//}
+
+//cv::Mat Frame::getCoefficients_depth() const
+//{
+//    return coefficients_depth;
+//}
+
+//void Frame::setCoefficients_depth(const cv::Mat &value)
+//{
+//    coefficients_depth = value;
+//}
+
+//cv::Mat Frame::getCameraMatrix_depth() const
+//{
+//    return cameraMatrix_depth;
+//}
+
+//void Frame::setCameraMatrix_depth(const cv::Mat &value)
+//{
+//    cameraMatrix_depth = value;
+//}
