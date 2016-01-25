@@ -43,7 +43,15 @@ CameraWrapper::CameraWrapper(int frames)
         //    depthcam->setFilterSetting(filtermode);
         //    // TODO: find good laser power, max 16
         //    depthcam->setLaserPower(16);
-        rs_enable_stream_preset(dev, RS_STREAM_DEPTH, RS_PRESET_BEST_QUALITY, &e);
+
+        //rs_enable_stream_preset(dev, RS_STREAM_DEPTH, RS_PRESET_BEST_QUALITY, &e);
+
+
+        rs_enable_stream(dev, RS_STREAM_DEPTH, 640, 480, RS_FORMAT_Z16, 60, &e);
+        check_error();
+        rs_set_device_option(dev, RS_OPTION_F200_ACCURACY, 1, &e);
+        check_error();
+        rs_set_device_option(dev, RS_OPTION_F200_FILTER_OPTION, 0, &e);
         check_error();
         rs_enable_stream_preset(dev, RS_STREAM_COLOR, RS_PRESET_BEST_QUALITY, &e);
         check_error();
