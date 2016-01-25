@@ -29,6 +29,7 @@ private:
     cv::Mat getCoefficients_depth() const;
     cv::Mat getCoefficients_color() const;
     int framesToRecord;
+    double calculateVariance(std::vector<float> var_values);
     void check_error();
     float depthScale;
     void convertIntrinsicToOpenCV(const rs_intrinsics & in_intrinsics, cv::Mat & out_cammat, cv::Mat & out_coeffs);

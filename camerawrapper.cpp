@@ -147,7 +147,6 @@ Frame CameraWrapper::record()
     // call averager
     // TODO add interface
 
-
     // limit to 4 frames
     // average RGB images
     int framesToRecordRGB;
@@ -168,9 +167,53 @@ Frame CameraWrapper::record()
         frame1.processedImageIR = frame1.processedImageIR + (1.0/framesToRecordRGB)*irstack[frame];
     }
 
-    // fill averaged IR and depth
+    // average depth, calculate variance and zeroes
 
-    // fill beliefmap
+    cv::Mat belief(depth_intrin.height, depth_intrin.width, CV_8U, cv::Scalar::all(0));
+    cv::Mat processedImageDepth(depth_intrin.height, depth_intrin.width, CV_32F, cv::Scalar::all(0));
+
+
+    for (int y = 0; y < depth_intrin.height; y++)
+    {
+        for (int x = 0; x < depth_intrin.width; x++)
+        {
+            double tempresult_depth = 0;
+            int depth_zeroes = 0;
+            std::vector<float> var_values;
+            for(int frame = 0; frame < depthstack.size(); frame++)
+            {
+                if(depthstack[frame].at<float>(y,x) == 0.0)
+                {
+                    depth_zeroes++;
+                }else
+                {
+                    tempresult_depth += (float)depthstack[frame].at<float>(y,x);
+                    // increase values by big factor because of value range
+                    var_values.push_back(depthstack[frame].at<float>(y,x)*10000);
+                }
+            }
+            // calculate average
+
+            double var = calculateVariance(var_values);
+
+            // limit variance for display reasons
+            if (var > 255.0)
+                var = 255.0;
+
+            // reduce belief if pixel has zero value i.e. no data
+            int zeroPenaltyFactor = 255/depthstack.size();
+            int beliefPx = 255-((int)var + (depth_zeroes * zeroPenaltyFactor));
+            if (beliefPx < 0)
+                beliefPx = 0;
+
+            processedImageDepth.at<float>(y,x) = tempresult_depth/(depthstack.size()-depth_zeroes);
+            // zeroes: (255-((255/stack.size())*depth_zeroes)
+            belief.at<uchar>(y,x) = beliefPx;
+        }
+    }
+    frame1.belief = belief;
+    frame1.processedImageDepth = processedImageDepth;
+    //frame1.processedImageDepth = depthstack[0];
 
     return frame1;
 }
@@ -198,4 +241,32 @@ void CameraWrapper::convertIntrinsicToOpenCV(const rs_intrinsics &in_intrinsics,
 rs_intrinsics CameraWrapper::getIntrinsicsFromOpenCV(const cv::Mat &in_cammat, const cv::Mat &in_coeffs)
 {
     // TODO implement method
+}
+
+double CameraWrapper::calculateVariance(std::vector<float> var_values)
+{
+    if(var_values.size() > 1){
+        double mean = 0.0;
+        double sum_av = 0;
+
+        // calculate mean
+        for ( int x=0; x < var_values.size(); x++)
+        {
+            sum_av += var_values[x];
+        }
+
+        mean =  (sum_av / var_values.size());
+
+        //calculate variance
+        double sum = 0.0;
+
+        for ( int y =0; y < var_values.size(); y++)
+        {
+            sum += pow((var_values[y] - mean),2);
+        }
+        return sum/(var_values.size());
+    }
+    else{
+        return 0.0;
+    }
 }
