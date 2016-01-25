@@ -16,6 +16,7 @@ public:
     ~CameraWrapper();
     Frame record();
     void setStackSize(int frames);
+    void computePoints(float depth[3], float color[2]);
 private:
     rs_intrinsics depth_intrin;
     rs_intrinsics color_intrin;

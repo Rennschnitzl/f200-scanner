@@ -231,6 +231,16 @@ void CameraWrapper::setStackSize(int frames)
     this->framesToRecord = frames;
 }
 
+void CameraWrapper::computePoints(float depth[3], float color[2])
+{
+    float depth_pixel[2] = {depth[0], depth[1]};
+
+    float color_point[3];
+    rs_deproject_pixel_to_point(depth, &depth_intrin, depth_pixel, depth[3]);
+    rs_transform_point_to_point(color_point, &depth_to_color, depth);
+    rs_project_point_to_pixel(color, &color_intrin, color_point);
+}
+
 void CameraWrapper::check_error()
 {
     if(e)
