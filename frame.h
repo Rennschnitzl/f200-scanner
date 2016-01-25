@@ -3,36 +3,35 @@
 
 #include <iostream>
 #include <opencv2/opencv.hpp>
-#include <pcl/common/common_headers.h>
+//#include <pcl/common/common_headers.h>
 //#include <pcl/point_types.h>
-#include <pcl/common/transforms.h>
+//#include <pcl/common/transforms.h>
 
 class Frame
 {
 public:
-    Frame(int width, int height, cv::Mat CameraMatrix, cv::Mat coeffs);
+    Frame(cv::Mat CameraMatrix_depth, cv::Mat coeffs_depth, cv::Mat CameraMatrix_color, cv::Mat coeffs_color);
 
     // camera related
-    cv::Mat cameraMatrix;
-    cv::Mat coefficients;
-    int width;
-    int height;
+    cv::Mat cameraMatrix_depth;
+    cv::Mat coefficients_depth;
+    cv::Mat cameraMatrix_color;
+    cv::Mat coefficients_color;
 
     // images
     cv::Mat belief;
     cv::Mat processedImageDepth;
     cv::Mat processedImageIR;
-    std::vector<cv::Mat> rawStackIR;
-    std::vector<cv::Mat> rawStackDepth;
+
 
     // tracking
-    Eigen::Vector4f origin;
-    Eigen::Quaternionf orientation;
-    Eigen::Affine3f matrix;
+//    Eigen::Vector4f origin;
+//    Eigen::Quaternionf orientation;
+//    Eigen::Affine3f matrix;
 
     // point cloud
-    pcl::PointCloud<pcl::PointXYZI> cloud;
-    pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr;
+//    pcl::PointCloud<pcl::PointXYZI> cloud;
+//    pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr;
 private:
 
 };
