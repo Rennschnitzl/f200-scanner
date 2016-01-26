@@ -37,15 +37,8 @@ CameraWrapper::CameraWrapper(int frames)
         check_error();
 
         // set controls
-        // TODO check control presets
-        //    // set video settings to 11 patterns and raw values
-        //    depthcam->setIvcamSetting(0);
-        //    depthcam->setFilterSetting(filtermode);
-        //    // TODO: find good laser power, max 16
-        //    depthcam->setLaserPower(16);
-
+        // TODO: find good laser power, max 15
         //rs_enable_stream_preset(dev, RS_STREAM_DEPTH, RS_PRESET_BEST_QUALITY, &e);
-
 
         rs_enable_stream(dev, RS_STREAM_DEPTH, 640, 480, RS_FORMAT_Z16, 60, &e);
         check_error();
@@ -231,14 +224,23 @@ void CameraWrapper::setStackSize(int frames)
     this->framesToRecord = frames;
 }
 
+// TODO clean method signature and kick out nasty float arrays
 void CameraWrapper::computePoints(float depth[3], float color[2])
 {
+    //std::cout << depth[0] << " " << depth[1] << " " << depth[2] << std::endl;
     float depth_pixel[2] = {depth[0], depth[1]};
+    float depth_in_meters = depth[2];
 
-    float color_point[3];
-    rs_deproject_pixel_to_point(depth, &depth_intrin, depth_pixel, depth[3]);
-    rs_transform_point_to_point(color_point, &depth_to_color, depth);
-    rs_project_point_to_pixel(color, &color_intrin, color_point);
+    float depth_point[3], color_point[3], color_pixel[2];
+    rs_deproject_pixel_to_point(depth_point, &depth_intrin, depth_pixel, depth_in_meters);
+    rs_transform_point_to_point(color_point, &depth_to_color, depth_point);
+    rs_project_point_to_pixel(color_pixel, &color_intrin, color_point);
+
+    depth[0] = depth_point[0];
+    depth[1] = depth_point[1];
+    depth[2] = depth_point[2];
+    color[0] = color_pixel[0];
+    color[1] = color_pixel[1];
 }
 
 void CameraWrapper::check_error()
