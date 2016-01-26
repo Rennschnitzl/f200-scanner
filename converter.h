@@ -31,13 +31,13 @@ class Converter
 {
 public:
     Converter();
-    static void analyseStack(std::vector<cv::Mat> &stack, cv::Mat &believe, cv::Mat &result);
-    static void averageIR(const std::vector<cv::Mat> & IRstack, cv::Mat & ir_avg);
-    static double calculateVariance(std::vector<int> var_values);
-    static std::string type2str(int type);
-    static void rescaleDepth(cv::InputArray in_in, int depth, cv::OutputArray out_out);
-    static void depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud, const cv::Mat& belief);
-    static void undistortDepth(cv::Mat &in_depth, const cv::Mat &camMatrix, const cv::Mat &coeffs, cv::Mat &belief);
+//    static void analyseStack(std::vector<cv::Mat> &stack, cv::Mat &believe, cv::Mat &result);
+//    static void averageIR(const std::vector<cv::Mat> & IRstack, cv::Mat & ir_avg);
+//    static double calculateVariance(std::vector<int> var_values);
+//    static std::string type2str(int type);
+//    static void rescaleDepth(cv::InputArray in_in, int depth, cv::OutputArray out_out);
+//    static void depthTo3d(const cv::Mat& in_depth, const cv::Mat& K, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud, const cv::Mat& belief);
+//    static void undistortDepth(cv::Mat &in_depth, const cv::Mat &camMatrix, const cv::Mat &coeffs, cv::Mat &belief);
 };
 
 #endif // CONVERTER_H

@@ -5,6 +5,8 @@ Converter::Converter()
 
 }
 
+
+/*
 std::string Converter::type2str(int type) {
     std::string r;
 
@@ -295,3 +297,4 @@ void Converter::undistortDepth(cv::Mat &in_depth, const cv::Mat &camMatrix, cons
     belief = out_belief;
     in_depth = undistorted_depth;
 }
+*/
