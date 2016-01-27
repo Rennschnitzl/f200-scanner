@@ -8,6 +8,7 @@
 //#include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/filter.h>
+#include <pcl/features/normal_3d.h>
 
 /*
 #include <pcl/surface/mls.h>
@@ -65,7 +66,6 @@ void statistical(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudptr, pcl::PointClo
     sor.setMeanK (30);
     sor.setStddevMulThresh (1.0);
     sor.filter (*cloud_filtered);
-    std::cout << "filter removed " << (cloudptr->size() - cloud_filtered->size()) << " points" << std::endl;
 }
 
 /// create points by using the projection functions of librealsense
@@ -150,7 +150,6 @@ int main()
     Frame image = cw.record();
     cv::imshow("ir" , image.processedImageIR);
     cv::imshow("color" , image.processedImageRGB);
-
     cv::imshow("depth" , image.processedImageDepth);
     cv::imshow("belief", image.belief);
 
@@ -161,26 +160,41 @@ int main()
     fillCloudFromFrame(cloud, cw, image);
 
     std::cout << "ordered? " << cloud->isOrganized() << std::endl;
+    std::cout << "size of pc: " << cloud->size() << std::endl;
 
     /// filter points by belief
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered = filterBelief(100, cloud);
+    std::cout << "belief-filter (" << 100 << ") removed " << (cloud->size() - filtered->size()) << " points" << std::endl;
+
 
     /// remove NaNs
     std::vector<int> indices;
     pcl::removeNaNFromPointCloud(*filtered, *filtered, indices);
-    std::cout << "NaNs removed " << indices.size() << std::endl;
+    std::cout << "NaNs removed, points left: " << filtered.size() << std::endl;
 
     /// filter outliers
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers (new pcl::PointCloud<pcl::PointXYZRGBA>);
     statistical(filtered,cloud_without_outliers);
+    std::cout << "statistical outlier filter removed " << (filtered->size() - cloud_without_outliers->size()) << " points" << std::endl;
 
-    /// Display point cloud
+    /// estimate normals
+    pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
+    pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA> ());
+    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+    ne.setInputCloud (cloud_without_outliers);
+    ne.setSearchMethod (tree);
+    ne.setRadiusSearch (0.03);
+    ne.compute (*cloud_normals);
+    std::cout << "computed " << cloud_normals->size() << " normals" << std::endl;
+
+    /// Display point cloud with normals
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
     pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud_without_outliers);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(0.1, "Origin");
     viewer->addPointCloud<pcl::PointXYZRGBA>(cloud_without_outliers, rgb, "frame");
+    viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal> (cloud_without_outliers, cloud_normals, 100, 0.01, "normals");
     viewer->spin();
 
     return 0;
