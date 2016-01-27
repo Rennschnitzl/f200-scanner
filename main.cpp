@@ -1,19 +1,17 @@
 #include <iostream>
 #include <opencv2/opencv.hpp>
 #include <math.h>
-
-#include "camerawrapper.h"
-#include "frame.h"
-#include "converter.h"
-
-#include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/common/common_headers.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/radius_outlier_removal.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/conditional_removal.h>
+//#include <pcl/filters/radius_outlier_removal.h>
 #include <pcl/filters/statistical_outlier_removal.h>
+#include <pcl/filters/filter.h>
+
+/*
 #include <pcl/surface/mls.h>
 #include <pcl/registration/icp.h>
-
 #include <pcl/io/pcd_io.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/features/normal_3d.h>
@@ -21,16 +19,20 @@
 #include <pcl/io/vtk_io.h>
 #include <pcl/point_types_conversion.h>
 #include <pcl/surface/impl/mls.hpp> // MSL for PointXYZINormals
+*/
+
+#include "camerawrapper.h"
+#include "frame.h"
 
 
-#define RECORD_STACK_SIZE 40
-#define IMAGE_HEIGHT 480
-#define IMAGE_WIDTH 640
-
-float lastx = 0.0, lasty = 0.0, lastz = 0.0;
+#define FRAME_RECORD_SIZE 10
 
 using namespace std;
 
+// TODO move methods to helper class
+// TODO get rid of code in main
+
+float lastx = 0.0, lasty = 0.0, lastz = 0.0;
 void pp_callback(const pcl::visualization::PointPickingEvent& event, void* viewer_void)
 {
     //std::cout << "Picking event active" << std::endl;
@@ -49,23 +51,163 @@ void pp_callback(const pcl::visualization::PointPickingEvent& event, void* viewe
     }
 }
 
-void display(Frame frame1)
+void statistical(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudptr, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_filtered)
 {
-    cv::Mat depth_cv_8;
-    cv::Mat depth_cv_rgb(IMAGE_HEIGHT,IMAGE_WIDTH,CV_8UC3);
-
-    frame1.processedImageDepth.convertTo(depth_cv_8,CV_8U,1.0/256.0);
-
-    cv::cvtColor(depth_cv_8,depth_cv_rgb,CV_GRAY2RGB);
-
-    cv::Mat ir_cv_rgb(IMAGE_HEIGHT,IMAGE_WIDTH,CV_8UC3);
-
-    cv::cvtColor(frame1.processedImageIR,ir_cv_rgb,CV_GRAY2RGB);
-
-    cv::imshow("depth", depth_cv_rgb);
-    cv::imshow("ir", ir_cv_rgb);
-    cv::imshow("belief", frame1.belief);
+    //    pcl::RadiusOutlierRemoval<pcl::PointXYZI> outrem;
+    //    // build the filter
+    //    outrem.setInputCloud(cloudptr);
+    //    outrem.setRadiusSearch(0.15);
+    //    outrem.setMinNeighborsInRadius (5);
+    //    // apply filter
+    //    outrem.filter (*cloud_filtered);
+    pcl::StatisticalOutlierRemoval<pcl::PointXYZRGBA> sor;
+    sor.setInputCloud (cloudptr);
+    sor.setMeanK (30);
+    sor.setStddevMulThresh (1.0);
+    sor.filter (*cloud_filtered);
+    std::cout << "filter removed " << (cloudptr->size() - cloud_filtered->size()) << " points" << std::endl;
 }
+
+/// create points by using the projection functions of librealsense
+/// xyz are 3d coordinates in meters (e.g. 1.5 equals 1.5 meters)
+/// rgb are the colors from the colorcam (neares point available - rounded)
+/// a is the belief calculated in the creation of the frame
+void fillCloudFromFrame(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, CameraWrapper cw, Frame image)
+{
+    // make sure it's empty
+    cloud->clear();
+
+    for(int y = 0; y < image.processedImageDepth.size().height; y++)
+    {
+        for (int x = 0; x < image.processedImageDepth.size().width; x++)
+        {
+            float distance = image.processedImageDepth.at<float>(y,x);
+            if(distance != distance)
+            {
+                pcl::PointXYZRGBA point;
+                point.x = std::numeric_limits<float>::quiet_NaN();
+                point.y = std::numeric_limits<float>::quiet_NaN();
+                point.z = std::numeric_limits<float>::quiet_NaN();
+                point.r = std::numeric_limits<int>::quiet_NaN();
+                point.g = std::numeric_limits<int>::quiet_NaN();
+                point.b = std::numeric_limits<int>::quiet_NaN();
+                point.a = std::numeric_limits<int>::quiet_NaN();
+                cloud->push_back(point);
+                continue;
+            }
+            pcl::PointXYZRGBA point;
+            float depth[3] = {(float)x, (float)y, distance};
+            float colorpx[2];
+            cw.computePoints(depth, colorpx);
+            point.x = -depth[0];
+            point.y = -depth[1];
+            point.z = depth[2];
+            point.a = image.belief.at<uchar>(y,x);
+            const int cx = (int)roundf(colorpx[0]), cy = (int)roundf(colorpx[1]);
+            if(cx < 0 || cy < 0 || cx >= image.processedImageRGB.size().width || cy >= image.processedImageRGB.size().height)
+            {
+                point.b = 255;
+                point.g = 255;
+                point.r = 255;
+            }else
+            {
+                point.b = image.processedImageRGB.at<cv::Vec3b>(cy,cx)[0];
+                point.g = image.processedImageRGB.at<cv::Vec3b>(cy,cx)[1];
+                point.r = image.processedImageRGB.at<cv::Vec3b>(cy,cx)[2];
+            }
+            cloud->push_back(point);
+        }
+    }
+    cloud->is_dense = false;
+    cloud->width = image.processedImageDepth.size().width;
+    cloud->height = image.processedImageDepth.size().height;
+}
+
+/// remove uncertain points - filter by belief
+/// also: passthrough is a dick (see: http://www.pcl-users.org/How-to-filter-based-on-color-using-PCL-td2791524.html )
+/// condition removal sucks
+pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filterBelief(int filterlimit, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud)
+{
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    for(int y = 0; y < cloud->width; y++)
+    {
+        for (int x = 0; x < cloud->height; x++)
+        {
+            int position = y*cloud->height+x;
+            if(cloud->at(position).a > filterlimit)
+            {
+                filtered->push_back(cloud->at(position));
+            }
+        }
+    }
+    return filtered;
+}
+
+int main()
+{
+    CameraWrapper cw(FRAME_RECORD_SIZE);
+
+    Frame image = cw.record();
+    cv::imshow("ir" , image.processedImageIR);
+    cv::imshow("color" , image.processedImageRGB);
+
+    cv::imshow("depth" , image.processedImageDepth);
+    cv::imshow("belief", image.belief);
+
+    cv::waitKey(0);
+
+    /// convert a pointcloud
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    fillCloudFromFrame(cloud, cw, image);
+
+    std::cout << "ordered? " << cloud->isOrganized() << std::endl;
+
+    /// filter points by belief
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered = filterBelief(100, cloud);
+
+    /// remove NaNs
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(*filtered, *filtered, indices);
+    std::cout << "NaNs removed " << indices.size() << std::endl;
+
+    /// filter outliers
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    statistical(filtered,cloud_without_outliers);
+
+    /// Display point cloud
+    boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud_without_outliers);
+    viewer->setBackgroundColor (0, 0, 0);
+    viewer->initCameraParameters ();
+    viewer->addCoordinateSystem(0.1, "Origin");
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud_without_outliers, rgb, "frame");
+    viewer->spin();
+
+    return 0;
+}
+
+/*
+void interpolate(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered, pcl::PointCloud<pcl::PointXYZINormal> mls_points)
+{
+    // Create a KD-Tree
+    pcl::search::KdTree<pcl::PointXYZI>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZI>);
+
+
+    // Init object (second point type is for the normals, even if unused)
+    pcl::MovingLeastSquares<pcl::PointXYZI, pcl::PointXYZINormal> mls;
+
+    mls.setComputeNormals (true);
+
+    // Set parameters
+    mls.setInputCloud (cloud_filtered);
+    mls.setPolynomialFit (true);
+    mls.setSearchMethod (tree);
+    mls.setSearchRadius (0.02);
+
+    // Reconstruct
+    mls.process (mls_points);
+}
+
 
 void triangulation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered)
 {
@@ -124,65 +266,7 @@ void triangulation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered)
     std::vector<int> states = gp3.getPointStates();
 }
 
-void interpolate(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered, pcl::PointCloud<pcl::PointXYZINormal> mls_points)
-{
-    // Create a KD-Tree
-    pcl::search::KdTree<pcl::PointXYZI>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZI>);
 
-
-    // Init object (second point type is for the normals, even if unused)
-    pcl::MovingLeastSquares<pcl::PointXYZI, pcl::PointXYZINormal> mls;
-
-    mls.setComputeNormals (true);
-
-    // Set parameters
-    mls.setInputCloud (cloud_filtered);
-    mls.setPolynomialFit (true);
-    mls.setSearchMethod (tree);
-    mls.setSearchRadius (0.02);
-
-    // Reconstruct
-    mls.process (mls_points);
-}
-
-void statistical(pcl::PointCloud<pcl::PointXYZI>::Ptr cloudptr, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered)
-{
-    //    pcl::RadiusOutlierRemoval<pcl::PointXYZI> outrem;
-    //    // build the filter
-    //    outrem.setInputCloud(cloudptr);
-    //    outrem.setRadiusSearch(0.15);
-    //    outrem.setMinNeighborsInRadius (5);
-    //    // apply filter
-    //    outrem.filter (*cloud_filtered);
-    pcl::StatisticalOutlierRemoval<pcl::PointXYZI> sor;
-    sor.setInputCloud (cloudptr);
-    sor.setMeanK (50);
-    sor.setStddevMulThresh (1.0);
-    sor.filter (*cloud_filtered);
-    std::cout << "filter removed " << (cloudptr->size() - cloud_filtered->size()) << " points" << std::endl;
-}
-
-Frame getMeAFuckingFrame(CameraWrapper &cw)
-{
-
-    std::cout << "hier kommt das voegelchen..." << std::endl;
-
-    Frame frame1(IMAGE_WIDTH, IMAGE_HEIGHT, cw.getCameraMatrix(),cw.getCoeffs());
-
-    // RECORD & PROCESS
-    cw.recordStack(RECORD_STACK_SIZE,frame1.rawStackIR, frame1.rawStackDepth);
-    Converter::analyseStack(frame1.rawStackDepth, frame1.belief, frame1.processedImageDepth);
-    Converter::averageIR(frame1.rawStackIR, frame1.processedImageIR);
-    Converter::undistortDepth(frame1.processedImageDepth, frame1.cameraMatrix, frame1.coefficients, frame1.belief);
-
-    // CONVERT TO CLOUD
-    Converter::depthTo3d(frame1.processedImageDepth,cw.getCameraMatrix(),frame1.cloudptr, frame1.belief);
-
-    return frame1;
-}
-
-int main()
-{
     /// **************
     /// Init viewer
     /// **************
@@ -195,50 +279,6 @@ int main()
     pcl::PointCloud<pcl::PointXYZI>::Ptr dummy (new pcl::PointCloud<pcl::PointXYZI>);
     viewer->addPointCloud<pcl::PointXYZI> (dummy, "frame1");
     viewer->addPointCloud<pcl::PointXYZI> (dummy, "frame2");
-
-
-    /// **************
-    /// Init other stuff
-    /// **************
-    CameraWrapper cw(0);
-    std::vector<Frame> framevector;
-    Frame savedFrame(IMAGE_WIDTH, IMAGE_HEIGHT, cw.getCameraMatrix(),cw.getCoeffs());
-
-    /// **************
-    /// Main Loop
-    /// **************
-
-    Frame temporary_frame = getMeAFuckingFrame(cw);
-
-    // DISPLAY
-    display(temporary_frame);
-
-    cv::waitKey(0);
-
-
-    /// **************
-    /// Statistical outlier removal
-    /// **************
-//    pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_filtered (new pcl::PointCloud<pcl::PointXYZI>);
-//    statistical(cloudptr, cloud_filtered);
-
-    /// **************
-    /// Triangulation
-    /// writes vtk mesh to disk
-    /// **************
-    //triangulation(cloud_filtered);
-
-
-    /// **************
-    /// Interpolation
-    /// **************
-//    pcl::PointCloud<pcl::PointXYZINormal> mls_points;
-//    pcl::PointCloud<pcl::PointXYZINormal>::Ptr mls_ptr = mls_points.makeShared();
-
-//    interpolate(cloud_filtered, mls_points);
-//    viewer->addPointCloud<pcl::PointXYZINormal>(mls_ptr, "frame");
-
-
     /// **************
     /// Display in Viewer
     /// **************
@@ -317,6 +357,6 @@ int main()
         {
 
         }
-    }
-    return 0;
-}
+
+
+*/
