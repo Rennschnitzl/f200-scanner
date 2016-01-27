@@ -9,10 +9,15 @@
 #include <pcl/filters/statistical_outlier_removal.h>
 #include <pcl/filters/filter.h>
 #include <pcl/features/normal_3d.h>
+#include <pcl/registration/icp.h>
+#include <pcl/registration/gicp6d.h>
+#include <pcl/console/time.h>
+#include <pcl/common/transforms.h>
+
 
 /*
 #include <pcl/surface/mls.h>
-#include <pcl/registration/icp.h>
+
 #include <pcl/io/pcd_io.h>
 #include <pcl/kdtree/kdtree_flann.h>
 #include <pcl/features/normal_3d.h>
@@ -32,6 +37,14 @@ using namespace std;
 
 // TODO move methods to helper class
 // TODO get rid of code in main
+
+bool next_iteration = false;
+void keyboardEventOccurred (const pcl::visualization::KeyboardEvent& event,
+                       void* nothing)
+{
+  if (event.getKeySym () == "space" && event.keyDown ())
+    next_iteration = true;
+}
 
 float lastx = 0.0, lasty = 0.0, lastz = 0.0;
 void pp_callback(const pcl::visualization::PointPickingEvent& event, void* viewer_void)
@@ -72,7 +85,7 @@ void statistical(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloudptr, pcl::PointClo
 /// xyz are 3d coordinates in meters (e.g. 1.5 equals 1.5 meters)
 /// rgb are the colors from the colorcam (neares point available - rounded)
 /// a is the belief calculated in the creation of the frame
-void fillCloudFromFrame(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, CameraWrapper cw, Frame image)
+void fillCloudFromFrame(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, CameraWrapper &cw, Frame &image)
 {
     // make sure it's empty
     cloud->clear();
@@ -106,9 +119,9 @@ void fillCloudFromFrame(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud, CameraWra
             const int cx = (int)roundf(colorpx[0]), cy = (int)roundf(colorpx[1]);
             if(cx < 0 || cy < 0 || cx >= image.processedImageRGB.size().width || cy >= image.processedImageRGB.size().height)
             {
+                point.r = 255;
                 point.b = 255;
                 point.g = 255;
-                point.r = 255;
             }else
             {
                 point.b = image.processedImageRGB.at<cv::Vec3b>(cy,cx)[0];
@@ -143,6 +156,50 @@ pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filterBelief(int filterlimit, pcl::Point
     return filtered;
 }
 
+pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filterNoColor(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud)
+{
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    for(int y = 0; y < cloud->width; y++)
+    {
+        for (int x = 0; x < cloud->height; x++)
+        {
+            int position = y*cloud->height+x;
+            if(cloud->at(position).r != 255 && cloud->at(position).g != 255 && cloud->at(position).b != 255)
+            {
+                filtered->push_back(cloud->at(position));
+            }
+        }
+    }
+    return filtered;
+}
+
+void applyFilterPipeline(Frame &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers, CameraWrapper &cw)
+{
+    /// convert a pointcloud
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    fillCloudFromFrame(cloud, cw, image);
+    std::cout << "ordered? " << cloud->isOrganized() << std::endl;
+    std::cout << "size of pc: " << cloud->size() << std::endl;
+
+    /// filter points by belief
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filteredcolor = filterNoColor(cloud);
+    std::cout << "nocolor-filter removed " << (cloud->size() - filteredcolor->size()) << " points" << std::endl;
+
+    /// filter points by belief
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered = filterBelief(100, filteredcolor);
+    std::cout << "belief-filter (" << 100 << ") removed " << (filteredcolor->size() - filtered->size()) << " points" << std::endl;
+
+    /// remove NaNs
+    std::vector<int> indices;
+    pcl::removeNaNFromPointCloud(*filtered, *filtered, indices);
+    std::cout << "NaNs removed, points left: " << filtered->size() << std::endl;
+
+    /// filter outliers
+    //pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    statistical(filtered,cloud_without_outliers);
+    std::cout << "statistical outlier filter removed " << (filtered->size() - cloud_without_outliers->size()) << " points" << std::endl;
+}
+
 int main()
 {
     CameraWrapper cw(FRAME_RECORD_SIZE);
@@ -150,52 +207,92 @@ int main()
     Frame image = cw.record();
     cv::imshow("ir" , image.processedImageIR);
     cv::imshow("color" , image.processedImageRGB);
-    cv::imshow("depth" , image.processedImageDepth);
-    cv::imshow("belief", image.belief);
+//    cv::imshow("depth" , image.processedImageDepth);
+//    cv::imshow("belief", image.belief);
+
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+    applyFilterPipeline(image, cloud1, cw);
 
     cv::waitKey(0);
 
-    /// convert a pointcloud
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZRGBA>);
-    fillCloudFromFrame(cloud, cw, image);
+    Frame image2 = cw.record();
+    cv::imshow("ir" , image2.processedImageIR);
+    cv::imshow("color" , image2.processedImageRGB);
+//    cv::imshow("depth" , image.processedImageDepth);
+//    cv::imshow("belief", image.belief);
 
-    std::cout << "ordered? " << cloud->isOrganized() << std::endl;
-    std::cout << "size of pc: " << cloud->size() << std::endl;
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGBA>);
 
-    /// filter points by belief
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filtered = filterBelief(100, cloud);
-    std::cout << "belief-filter (" << 100 << ") removed " << (cloud->size() - filtered->size()) << " points" << std::endl;
+    applyFilterPipeline(image2, cloud2, cw);
+
+    cv::waitKey(0);
+
+//    /// estimate normals
+//    /// http://pointclouds.org/documentation/tutorials/normal_estimation.php#normal-estimation
+//    pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
+//    pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA> ());
+//    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
+//    ne.setInputCloud (cloud_without_outliers);
+//    ne.setSearchMethod (tree);
+//    ne.setRadiusSearch (0.01); // 0.3
+//    ne.compute (*cloud_normals);
+//    std::cout << "computed " << cloud_normals->size() << " normals" << std::endl;
 
 
-    /// remove NaNs
-    std::vector<int> indices;
-    pcl::removeNaNFromPointCloud(*filtered, *filtered, indices);
-    std::cout << "NaNs removed, points left: " << filtered.size() << std::endl;
+    pcl::GeneralizedIterativeClosestPoint6D reg;
+    //pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
+    //pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
+    reg.setInputSource (cloud2);
+    reg.setInputTarget (cloud1);
+    reg.setMaxCorrespondenceDistance(0.05);
+    //reg.setEuclideanFitnessEpsilon(1e-8);
+    reg.setMaximumIterations (1);
+    //reg.setTransformationEpsilon (1e-8);
 
-    /// filter outliers
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers (new pcl::PointCloud<pcl::PointXYZRGBA>);
-    statistical(filtered,cloud_without_outliers);
-    std::cout << "statistical outlier filter removed " << (filtered->size() - cloud_without_outliers->size()) << " points" << std::endl;
-
-    /// estimate normals
-    pcl::NormalEstimation<pcl::PointXYZRGBA, pcl::Normal> ne;
-    pcl::search::KdTree<pcl::PointXYZRGBA>::Ptr tree (new pcl::search::KdTree<pcl::PointXYZRGBA> ());
-    pcl::PointCloud<pcl::Normal>::Ptr cloud_normals (new pcl::PointCloud<pcl::Normal>);
-    ne.setInputCloud (cloud_without_outliers);
-    ne.setSearchMethod (tree);
-    ne.setRadiusSearch (0.03);
-    ne.compute (*cloud_normals);
-    std::cout << "computed " << cloud_normals->size() << " normals" << std::endl;
+    pcl::console::TicToc time;
+    double icp_time;
 
     /// Display point cloud with normals
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud_without_outliers);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud2);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(cloud1);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(0.1, "Origin");
-    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud_without_outliers, rgb, "frame");
-    viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal> (cloud_without_outliers, cloud_normals, 100, 0.01, "normals");
-    viewer->spin();
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud2, rgb, "frame2");
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud1, rgb2, "frame1");
+    //viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal> (cloud_without_outliers, cloud_normals, 100, 0.01, "normals");
+    //viewer->spin();
+    viewer->registerKeyboardCallback (&keyboardEventOccurred, (void*) NULL);
+
+    while (!viewer->wasStopped ())
+    {
+      viewer->spinOnce ();
+
+      if (next_iteration)
+      {
+          time.tic();
+          // when using generalizedicp, align will not transform the cloud. bug
+          reg.align(*cloud2);
+          icp_time = time.toc ();
+
+        if (reg.hasConverged ())
+        {
+            std::cout << "has converged:" << reg.hasConverged() << " score: " <<
+                         reg.getFitnessScore() << "in " << icp_time << "ms" << std::endl;
+            std::cout << reg.getFinalTransformation() << std::endl;
+            pcl::transformPointCloud (*cloud2, *cloud2, reg.getFinalTransformation());
+            viewer->updatePointCloud(cloud2, rgb, "frame2");
+        }
+        else
+        {
+          PCL_ERROR ("\nICP has not converged.\n");
+          return (-1);
+        }
+      }
+      next_iteration = false;
+    }
 
     return 0;
 }
