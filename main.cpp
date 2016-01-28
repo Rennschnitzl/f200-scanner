@@ -13,6 +13,7 @@
 #include <pcl/registration/gicp6d.h>
 #include <pcl/console/time.h>
 #include <pcl/common/transforms.h>
+#include <pcl/filters/voxel_grid.h>
 
 
 /*
@@ -240,12 +241,27 @@ int main()
 //    std::cout << "computed " << cloud_normals->size() << " normals" << std::endl;
 
 
-    pcl::GeneralizedIterativeClosestPoint6D reg;
+
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxcloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxcloud2 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+    float leafsize = 0.002;
+    pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+    sor.setInputCloud (cloud1);
+    sor.setLeafSize (leafsize,leafsize,leafsize);
+    sor.filter (*voxcloud1);
+
+    sor.setInputCloud (cloud2);
+    sor.setLeafSize (leafsize,leafsize,leafsize);
+    sor.filter (*voxcloud2);
+
+    float weight = 0.0015;
+    pcl::GeneralizedIterativeClosestPoint6D reg = pcl::GeneralizedIterativeClosestPoint6D(weight);
     //pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
     //pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
-    reg.setInputSource (cloud2);
-    reg.setInputTarget (cloud1);
-    reg.setMaxCorrespondenceDistance(0.05);
+    reg.setInputSource (voxcloud2);
+    reg.setInputTarget (voxcloud1);
+    reg.setMaxCorrespondenceDistance(0.02);
     //reg.setEuclideanFitnessEpsilon(1e-8);
     reg.setMaximumIterations (1);
     //reg.setTransformationEpsilon (1e-8);
@@ -274,7 +290,7 @@ int main()
       {
           time.tic();
           // when using generalizedicp, align will not transform the cloud. bug
-          reg.align(*cloud2);
+          reg.align(*voxcloud2,Eigen::Matrix4f::Identity());
           icp_time = time.toc ();
 
         if (reg.hasConverged ())
@@ -282,6 +298,7 @@ int main()
             std::cout << "has converged:" << reg.hasConverged() << " score: " <<
                          reg.getFitnessScore() << "in " << icp_time << "ms" << std::endl;
             std::cout << reg.getFinalTransformation() << std::endl;
+            pcl::transformPointCloud (*voxcloud2, *voxcloud2, reg.getFinalTransformation());
             pcl::transformPointCloud (*cloud2, *cloud2, reg.getFinalTransformation());
             viewer->updatePointCloud(cloud2, rgb, "frame2");
         }
