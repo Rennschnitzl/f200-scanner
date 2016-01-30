@@ -20,8 +20,23 @@
 class Tracker
 {
 public:
-    Tracker();
+    Tracker(double markersize, std::string boardfile);
     void getTransformation(Frame & input);
+
+    double getThresParam1() const;
+    void setThresParam1(double value);
+
+    double getThresParam2() const;
+    void setThresParam2(double value);
+
+private:
+    string TheBoardConfigFile;
+    float TheMarkerSize;
+    aruco::CameraParameters TheCameraParameters;
+    aruco::BoardConfiguration TheBoardConfig;
+    aruco::BoardDetector TheBoardDetector;
+    double ThresParam1;
+    double ThresParam2;
 };
 
 #endif // TRACKING_H
