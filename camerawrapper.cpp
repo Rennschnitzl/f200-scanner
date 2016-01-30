@@ -224,7 +224,7 @@ void CameraWrapper::setStackSize(int frames)
     this->framesToRecord = frames;
 }
 
-// TODO clean method signature and kick out nasty float arrays
+// FIXME clean method signature and kick out nasty float arrays
 void CameraWrapper::computePoints(float depth[3], float color[2])
 {
     //std::cout << depth[0] << " " << depth[1] << " " << depth[2] << std::endl;

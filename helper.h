@@ -6,8 +6,9 @@
 
 #include <opencv2/opencv.hpp>
 
-namespace RsToCV
-{
-    cv::Mat convertMatrix(rs_intrinsics &input);
-}
+//namespace RsToCV
+//{
+//    cv::Mat convertMatrix(rs_intrinsics &input);
+//    cv::Mat convertDistortion(rs_intrinsics &input);
+//}
 #endif // HELPER_H

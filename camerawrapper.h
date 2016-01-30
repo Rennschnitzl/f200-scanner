@@ -35,9 +35,6 @@ private:
     float depthScale;
     void convertIntrinsicToOpenCV(const rs_intrinsics & in_intrinsics, cv::Mat & out_cammat, cv::Mat & out_coeffs);
     rs_intrinsics getIntrinsicsFromOpenCV(const cv::Mat & in_cammat, const cv::Mat & in_coeffs);
-    // DESIGN converterfunctions for different points
-    //cv::Mat convertIRtoCV(std::vector<std::vector<u_int8_t> > ir);
-    //cv::Mat convertDepthtoCV(std::vector<std::vector<u_int16_t> > depth);
 };
 
 #endif // CAMERAWRAPPER_H
