@@ -37,7 +37,7 @@ CameraWrapper::CameraWrapper(int frames)
         check_error();
 
         // set controls
-        // TODO: find good laser power, max 15
+        // NOTE find good laser power, max 15
         //rs_enable_stream_preset(dev, RS_STREAM_DEPTH, RS_PRESET_BEST_QUALITY, &e);
 
         rs_enable_stream(dev, RS_STREAM_DEPTH, 640, 480, RS_FORMAT_Z16, 60, &e);
@@ -146,7 +146,7 @@ Frame CameraWrapper::record()
     convertIntrinsicToOpenCV(ir_intrin, frame1.cameraMatrix_ir, frame1.coefficients_ir);
 
     // call averager
-    // TODO add interface
+    // DESIGN add interface
 
     // limit to 4 frames
     // average RGB images

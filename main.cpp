@@ -36,8 +36,8 @@
 
 using namespace std;
 
-// TODO move methods to helper class
-// TODO get rid of code in main
+// DESIGN move methods to helper class
+// DESIGN get rid of code in main
 
 bool next_iteration = false;
 void keyboardEventOccurred (const pcl::visualization::KeyboardEvent& event,

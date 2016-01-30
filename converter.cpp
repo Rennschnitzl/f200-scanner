@@ -54,7 +54,7 @@ void Converter::analyseStack(std::vector<cv::Mat> &stack, cv::Mat & believe, cv:
 
             double var = calculateVariance(var_values);
 
-            // TODO: filter von unzuverlässigen daten. möglicherweise in neue methode auslagern
+            // DESIGN filter von unzuverlässigen daten. möglicherweise in neue methode auslagern
             if(depth_zeroes < stack.size()-1 && var < 1000.0)
             {
                 processedImageDepth.at<ushort>(i,j) = tempresult_depth/(stack.size()-depth_zeroes);
@@ -266,7 +266,7 @@ void Converter::undistortDepth(cv::Mat &in_depth, const cv::Mat &camMatrix, cons
                                 map2);
     cv::remap(in_depth, undistorted_depth, map1, map2, cv::INTER_NEAREST);
 
-    // TODO: replace magic numbers with values from calibration matrix
+    // FIXME replace magic numbers with values from calibration matrix
     // correct depth
     // fancy überlegung von alex und peter
     for(int x = 0; x<640; x++)
