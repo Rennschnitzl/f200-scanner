@@ -40,15 +40,17 @@ CameraWrapper::CameraWrapper(int frames)
         // NOTE find good laser power, max 15
         //rs_enable_stream_preset(dev, RS_STREAM_DEPTH, RS_PRESET_BEST_QUALITY, &e);
 
-        rs_enable_stream(dev, RS_STREAM_DEPTH, 640, 480, RS_FORMAT_Z16, 60, &e);
+        rs_enable_stream(dev, RS_STREAM_DEPTH, 640, 480, RS_FORMAT_Z16, 30, &e);
         check_error();
         rs_set_device_option(dev, RS_OPTION_F200_ACCURACY, 1, &e);
         check_error();
         rs_set_device_option(dev, RS_OPTION_F200_FILTER_OPTION, 0, &e);
         check_error();
-        rs_enable_stream_preset(dev, RS_STREAM_COLOR, RS_PRESET_BEST_QUALITY, &e);
+        rs_enable_stream(dev, RS_STREAM_COLOR, 1920, 1080, RS_FORMAT_RGB8, 30, &e);
+//        rs_enable_stream_preset(dev, RS_STREAM_COLOR, RS_PRESET_BEST_QUALITY, &e);
         check_error();
-        rs_enable_stream_preset(dev, RS_STREAM_INFRARED, RS_PRESET_BEST_QUALITY, &e);
+        rs_enable_stream(dev, RS_STREAM_INFRARED, 640,480, RS_FORMAT_Y8, 30, &e);
+        //rs_enable_stream_preset(dev, RS_STREAM_INFRARED, RS_PRESET_BEST_QUALITY, &e);
         check_error();
         rs_start_device(dev, &e);
         check_error();
