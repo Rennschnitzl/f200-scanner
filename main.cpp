@@ -30,7 +30,7 @@
 
 #include "camerawrapper.h"
 #include "frame.h"
-
+#include "tracker.h"
 
 #define FRAME_RECORD_SIZE 10
 
@@ -204,12 +204,16 @@ void applyFilterPipeline(Frame &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr c
 int main()
 {
     CameraWrapper cw(FRAME_RECORD_SIZE);
+    Tracker track;
 
     Frame image = cw.record();
     cv::imshow("ir" , image.processedImageIR);
     cv::imshow("color" , image.processedImageRGB);
 //    cv::imshow("depth" , image.processedImageDepth);
 //    cv::imshow("belief", image.belief);
+
+    // FIXME remove this and build markertracking into the pipeline
+    track.getTransformation(image);
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
 
@@ -276,6 +280,7 @@ int main()
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(0.1, "Origin");
+    viewer->addCoordinateSystem(0.1, "secondCam");
     viewer->addPointCloud<pcl::PointXYZRGBA>(cloud2, rgb, "frame2");
     viewer->addPointCloud<pcl::PointXYZRGBA>(cloud1, rgb2, "frame1");
     //viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal> (cloud_without_outliers, cloud_normals, 100, 0.01, "normals");
@@ -290,7 +295,7 @@ int main()
       {
           time.tic();
           // when using generalizedicp, align will not transform the cloud. bug
-          reg.align(*voxcloud2,Eigen::Matrix4f::Identity());
+          reg.align(*voxcloud2,reg.getFinalTransformation());
           icp_time = time.toc ();
 
         if (reg.hasConverged ())
@@ -298,9 +303,13 @@ int main()
             std::cout << "has converged:" << reg.hasConverged() << " score: " <<
                          reg.getFitnessScore() << "in " << icp_time << "ms" << std::endl;
             std::cout << reg.getFinalTransformation() << std::endl;
-            pcl::transformPointCloud (*voxcloud2, *voxcloud2, reg.getFinalTransformation());
-            pcl::transformPointCloud (*cloud2, *cloud2, reg.getFinalTransformation());
+            //pcl::transformPointCloud (*voxcloud2, *voxcloud2, reg.getFinalTransformation());
+            //pcl::transformPointCloud (*cloud2, *cloud2, reg.getFinalTransformation());
+            Eigen::Matrix4f finalTransform = reg.getFinalTransformation();
+            Eigen::Affine3f transform (finalTransform);
+            viewer->updateCoordinateSystemPose("secondCam", transform);
             viewer->updatePointCloud(cloud2, rgb, "frame2");
+            viewer->updatePointCloudPose("frame2", transform);
         }
         else
         {
