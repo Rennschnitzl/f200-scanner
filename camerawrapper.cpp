@@ -248,12 +248,15 @@ void CameraWrapper::check_error()
 
 void CameraWrapper::convertIntrinsicToOpenCV(const rs_intrinsics &in_intrinsics, cv::Mat &out_cammat, cv::Mat &out_coeffs)
 {
-    // TODO implement method
+    double cam_mat_data[9] = {in_intrinsics.fx, 0, in_intrinsics.ppx,0,in_intrinsics.fy, in_intrinsics.ppy,0,0,1};
+    out_cammat = cv::Mat(3,3, CV_64F, cam_mat_data);
+    double coeff_data[5] = {in_intrinsics.coeffs[0],in_intrinsics.coeffs[1],in_intrinsics.coeffs[2],in_intrinsics.coeffs[3],in_intrinsics.coeffs[4]};
+    out_coeffs = cv::Mat(5,1, CV_64F, coeff_data);
 }
 
 rs_intrinsics CameraWrapper::getIntrinsicsFromOpenCV(const cv::Mat &in_cammat, const cv::Mat &in_coeffs)
 {
-    // TODO implement method
+    // NOTE implement method to convert opencv matrix to rs intrinsics
 }
 
 double CameraWrapper::calculateVariance(std::vector<float> var_values)
