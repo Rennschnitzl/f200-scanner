@@ -20,7 +20,7 @@
 class Tracker
 {
 public:
-    Tracker(double markersize, std::string boardfile);
+    Tracker(double markersize = 0.0325, std::string boardfile = "chessinfo_meter.yml");
     void getTransformation(Frame & input);
 
     double getThresParam1() const;

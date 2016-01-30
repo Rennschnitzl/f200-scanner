@@ -1,6 +1,6 @@
-#include "tracking.h"
+#include "tracker.h"
 
-Tracker::Tracker(double markersize = 0.0325, std::string boardfile = "chessinfo_meter.yml")
+Tracker::Tracker(double markersize, std::string boardfile)
 {
     TheBoardConfigFile = boardfile;
     TheMarkerSize = markersize;
@@ -17,6 +17,10 @@ void Tracker::getTransformation(Frame &input)
     TheCameraParameters.Distorsion = input.coefficients_color;
     TheCameraParameters.CamSize = input.processedImageRGB.size();
 
+//    std::string TheIntrinsicFile = "calibration.yml";
+//    TheCameraParameters.readFromXMLFile(TheIntrinsicFile);
+//    TheCameraParameters.resize(cv::Size(640,480));
+
     // init
     // DESIGN move this to initialization step with a fixed camera?
     TheBoardDetector.setParams(TheBoardConfig, TheCameraParameters, TheMarkerSize);
@@ -27,7 +31,19 @@ void Tracker::getTransformation(Frame &input)
     // TODO actual tracking
     cv::Mat TheInputImage, TheInputImageCopy;
     input.processedImageRGB.copyTo(TheInputImage);
-    float probDetect = TheBoardDetector.detect(input.processedImageRGB);
+
+    float probDetect = 0.0;
+
+    try
+    {
+        probDetect = TheBoardDetector.detect(input.processedImageRGB);
+    }
+    catch (...)
+    {
+
+        cout << "Problem erkannt..." << endl;
+    }
+
 
     // FIXME clean up this mess
 
