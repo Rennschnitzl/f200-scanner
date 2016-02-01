@@ -214,6 +214,7 @@ int main()
 
     // FIXME remove this and build markertracking into the pipeline
     track.getTransformation(image);
+    cv::imwrite("board.png", image.processedImageRGB);
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
 
