@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 aux_source_directory(. SRC_LIST)
 # this is needed for the findaruco.cmake script
 SET(CMAKE_MODULE_PATH ${CMAKE_INSTALL_PREFIX}/lib/cmake/ )
-find_package(OpenCV 2.4.9 REQUIRED )
+find_package(OpenCV REQUIRED )
 find_package(PCL REQUIRED )
 find_package(aruco REQUIRED )
 #find_package(octomap REQUIRED)
