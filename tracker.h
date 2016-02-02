@@ -28,8 +28,11 @@ public:
 
     double getThresParam2() const;
     void setThresParam2(double value);
+    bool debugmode = false;
 
 private:
+    Eigen::Affine3f createMatrixfromVectors(const cv::Mat &rvec, const cv::Mat &tvec);
+    Eigen::Affine3f create_rotation_matrix(double ax, double ay, double az);
     string TheBoardConfigFile;
     float TheMarkerSize;
     aruco::CameraParameters TheCameraParameters;
