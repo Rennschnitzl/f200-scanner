@@ -205,16 +205,14 @@ int main()
 {
     CameraWrapper cw(FRAME_RECORD_SIZE);
     Tracker track;
+    track.debugmode = true;
 
     Frame image = cw.record();
+    track.getTransformation(image);
     cv::imshow("ir" , image.processedImageIR);
     cv::imshow("color" , image.processedImageRGB);
 //    cv::imshow("depth" , image.processedImageDepth);
 //    cv::imshow("belief", image.belief);
-
-    // FIXME remove this and build markertracking into the pipeline
-    track.getTransformation(image);
-    cv::imwrite("board.png", image.processedImageRGB);
 
     pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
 
@@ -223,6 +221,7 @@ int main()
     cv::waitKey(0);
 
     Frame image2 = cw.record();
+    track.getTransformation(image2);
     cv::imshow("ir" , image2.processedImageIR);
     cv::imshow("color" , image2.processedImageRGB);
 //    cv::imshow("depth" , image.processedImageDepth);
@@ -276,14 +275,19 @@ int main()
 
     /// Display point cloud with normals
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud2);
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(cloud1);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud1);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(cloud2);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(0.1, "Origin");
-    viewer->addCoordinateSystem(0.1, "secondCam");
-    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud2, rgb, "frame2");
-    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud1, rgb2, "frame1");
+    viewer->addCoordinateSystem(0.1, "Cam1");
+    viewer->addCoordinateSystem(0.1, "Cam2");
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud2, rgb2, "frame2");
+    viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud1, rgb, "frame1");
+    viewer->updatePointCloudPose("frame1", image.transformMarker.inverse());
+    viewer->updateCoordinateSystemPose("Cam1", image.transformMarker.inverse());
+    viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
     //viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal> (cloud_without_outliers, cloud_normals, 100, 0.01, "normals");
     //viewer->spin();
     viewer->registerKeyboardCallback (&keyboardEventOccurred, (void*) NULL);
@@ -296,7 +300,7 @@ int main()
       {
           time.tic();
           // when using generalizedicp, align will not transform the cloud. bug
-          reg.align(*voxcloud2,reg.getFinalTransformation());
+          reg.align(*voxcloud2,(image2.transformMarker.inverse() * image.transformMarker).matrix());
           icp_time = time.toc ();
 
         if (reg.hasConverged ())
@@ -308,9 +312,10 @@ int main()
             //pcl::transformPointCloud (*cloud2, *cloud2, reg.getFinalTransformation());
             Eigen::Matrix4f finalTransform = reg.getFinalTransformation();
             Eigen::Affine3f transform (finalTransform);
-            viewer->updateCoordinateSystemPose("secondCam", transform);
-            viewer->updatePointCloud(cloud2, rgb, "frame2");
-            viewer->updatePointCloudPose("frame2", transform);
+            image2.transformMarker = (transform * image.transformMarker.inverse()).inverse();
+            viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
+            //viewer->updatePointCloud(cloud2, rgb, "frame2");
+            viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
         }
         else
         {
