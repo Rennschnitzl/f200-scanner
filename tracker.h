@@ -28,7 +28,7 @@ public:
 
     double getThresParam2() const;
     void setThresParam2(double value);
-    bool debugmode = false;
+    bool debugmode;
 
 private:
     Eigen::Affine3f createMatrixfromVectors(const cv::Mat &rvec, const cv::Mat &tvec);

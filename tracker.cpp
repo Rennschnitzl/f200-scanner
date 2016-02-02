@@ -9,6 +9,8 @@ Tracker::Tracker(double markersize, std::string boardfile)
 
     ThresParam1 = 10.0;
     ThresParam2 = 13.0;
+
+    debugmode = false;
 }
 
 /// uses rgb image and camera matrix to compute the markerposition
@@ -92,7 +94,7 @@ Eigen::Affine3f Tracker::createMatrixfromVectors(const cv::Mat &rvec, const cv::
     /// http://pointclouds.org/documentation/tutorials/matrix_transform.php
     /// http://stackoverflow.com/questions/12933284/rodrigues-into-eulerangles-and-vice-versa
     Eigen::Affine3f mpose = Eigen::Affine3f::Identity();
-    mpose.translation() << tvec.at<float>(0,0)*(-1*conversionmultiplier), tvec.at<float>(1,0)*(-1*conversionmultiplier), tvec.at<float>(2,0)*conversionmultiplier;
+    mpose.translation() << tvec.at<float>(0,0)*(-1), tvec.at<float>(1,0)*(-1), tvec.at<float>(2,0);
     float theta = sqrt(pow(rvec.at<float>(0,0),2) + pow(rvec.at<float>(1,0),2) + pow(rvec.at<float>(2,0),2));
     mpose.rotate (Eigen::AngleAxisf (theta, Eigen::Vector3f(rvec.at<float>(0,0)/theta*-1, rvec.at<float>(1,0)/theta*-1, rvec.at<float>(2,0)/theta)));
 

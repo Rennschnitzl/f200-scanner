@@ -3,7 +3,7 @@
 
 Frame::Frame()
 {
-
+    trackingprobability = 0.0;
 }
 
 //cv::Mat Frame::getCoefficients_ir() const

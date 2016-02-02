@@ -29,7 +29,7 @@ public:
 
     // tracking / transformations
     Eigen::Affine3f transformMarker;
-    float trackingprobability = 0.0;
+    float trackingprobability;
 
     // tracking
 //    Eigen::Vector4f origin;
