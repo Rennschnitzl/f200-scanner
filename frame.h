@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <opencv2/opencv.hpp>
+#include <Eigen/Geometry>
 //#include <pcl/common/common_headers.h>
 //#include <pcl/point_types.h>
 //#include <pcl/common/transforms.h>
@@ -26,6 +27,9 @@ public:
     cv::Mat processedImageIR;
     cv::Mat processedImageRGB;
 
+    // tracking / transformations
+    Eigen::Affine3f transformMarker;
+    float trackingprobability = 0.0;
 
     // tracking
 //    Eigen::Vector4f origin;
