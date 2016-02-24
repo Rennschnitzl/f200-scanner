@@ -14,6 +14,8 @@
 #include <pcl/console/time.h>
 #include <pcl/common/transforms.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/io/pcd_io.h>
 
 
 /*
@@ -199,17 +201,43 @@ void applyFilterPipeline(Frame &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr c
     //pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers (new pcl::PointCloud<pcl::PointXYZRGBA>);
     statistical(filtered,cloud_without_outliers);
     std::cout << "statistical outlier filter removed " << (filtered->size() - cloud_without_outliers->size()) << " points" << std::endl;
+
+    /// remove points outside of marker area
+    pcl::transformPointCloud(*cloud_without_outliers, *cloud_without_outliers, image.transformMarker.inverse());
+
+    pcl::PassThrough<pcl::PointXYZRGBA> pass;
+    pass.setFilterFieldName ("y");
+    pass.setFilterLimits (-0.15, 0.13);
+    pass.setNegative(false);
+    pass.setInputCloud (cloud_without_outliers);
+    pass.filter (*cloud_without_outliers);
+
+    pass.setFilterFieldName ("x");
+    pass.setFilterLimits (-0.10, 0.10);
+    pass.setNegative(false);
+    pass.setInputCloud (cloud_without_outliers);
+    pass.filter (*cloud_without_outliers);
+
+    pass.setFilterFieldName ("z");
+    pass.setFilterLimits (-0.2, -0.005);
+    pass.setNegative(false);
+    pass.setInputCloud (cloud_without_outliers);
+    pass.filter (*cloud_without_outliers);
+
+    pcl::transformPointCloud(*cloud_without_outliers, *cloud_without_outliers, image.transformMarker);
 }
 
 int main()
 {
     CameraWrapper cw(FRAME_RECORD_SIZE);
     Tracker track;
-    track.debugmode = true;
+    track.debugmode = false;
+
+    Frame dummy = cw.record();
 
     Frame image = cw.record();
     track.getTransformation(image);
-    cv::imshow("ir" , image.processedImageIR);
+//    cv::imshow("ir" , image.processedImageIR);
     cv::imshow("color" , image.processedImageRGB);
 //    cv::imshow("depth" , image.processedImageDepth);
 //    cv::imshow("belief", image.belief);
@@ -222,7 +250,7 @@ int main()
 
     Frame image2 = cw.record();
     track.getTransformation(image2);
-    cv::imshow("ir" , image2.processedImageIR);
+//    cv::imshow("ir" , image2.processedImageIR);
     cv::imshow("color" , image2.processedImageRGB);
 //    cv::imshow("depth" , image.processedImageDepth);
 //    cv::imshow("belief", image.belief);
@@ -232,6 +260,9 @@ int main()
     applyFilterPipeline(image2, cloud2, cw);
 
     cv::waitKey(0);
+
+    //pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud2);
+
 
 //    /// estimate normals
 //    /// http://pointclouds.org/documentation/tutorials/normal_estimation.php#normal-estimation
@@ -251,6 +282,8 @@ int main()
 
     float leafsize = 0.002;
     pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+    sor.setDownsampleAllData(true);
+
     sor.setInputCloud (cloud1);
     sor.setLeafSize (leafsize,leafsize,leafsize);
     sor.filter (*voxcloud1);
@@ -265,9 +298,9 @@ int main()
     //pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
     reg.setInputSource (voxcloud2);
     reg.setInputTarget (voxcloud1);
-    reg.setMaxCorrespondenceDistance(0.02);
+    reg.setMaxCorrespondenceDistance(0.008);
     //reg.setEuclideanFitnessEpsilon(1e-8);
-    reg.setMaximumIterations (1);
+    reg.setMaximumIterations (50);
     //reg.setTransformationEpsilon (1e-8);
 
     pcl::console::TicToc time;
@@ -275,16 +308,16 @@ int main()
 
     /// Display point cloud with normals
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud1);
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(cloud2);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(voxcloud1);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(voxcloud2);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(0.1, "Origin");
     viewer->addCoordinateSystem(0.1, "Cam1");
     viewer->addCoordinateSystem(0.1, "Cam2");
-    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud2, rgb2, "frame2");
+    viewer->addPointCloud<pcl::PointXYZRGBA>(voxcloud2, rgb2, "frame2");
     viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
-    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud1, rgb, "frame1");
+    viewer->addPointCloud<pcl::PointXYZRGBA>(voxcloud1, rgb, "frame1");
     viewer->updatePointCloudPose("frame1", image.transformMarker.inverse());
     viewer->updateCoordinateSystemPose("Cam1", image.transformMarker.inverse());
     viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
