@@ -71,6 +71,7 @@ CameraWrapper::CameraWrapper(int frames)
 
     // set number of frames to record
     setStackSize(frames);
+
 }
 
 CameraWrapper::~CameraWrapper()
@@ -146,6 +147,17 @@ Frame CameraWrapper::record()
     convertIntrinsicToOpenCV(depth_intrin, frame1.cameraMatrix_depth, frame1.coefficients_depth);
     convertIntrinsicToOpenCV(color_intrin, frame1.cameraMatrix_color, frame1.coefficients_color);
     convertIntrinsicToOpenCV(ir_intrin, frame1.cameraMatrix_ir, frame1.coefficients_ir);
+
+
+
+    Eigen::Matrix3f R(depth_to_color.rotation);
+    Eigen::Vector3f T(depth_to_color.translation);
+    Eigen::Matrix4f m1 = Eigen::Affine3f(Eigen::Translation3f(T)).matrix();
+    Eigen::Matrix4f m2 = Eigen::Affine3f(R).matrix();
+    Eigen::Matrix4f dtc = m1*m2;
+    Eigen::Affine3f mpose (dtc);
+
+    frame1.depth_to_color_transform = mpose;
 
     // call averager
     // DESIGN add interface

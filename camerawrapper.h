@@ -6,6 +6,7 @@
 #include <librealsense/rsutil.h>
 #include <stdio.h>
 #include "frame.h"
+#include <Eigen/Geometry>
 
 //#include <memory>
 

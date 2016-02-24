@@ -28,6 +28,7 @@ public:
     cv::Mat processedImageRGB;
 
     // tracking / transformations
+    Eigen::Affine3f depth_to_color_transform;
     Eigen::Affine3f transformMarker;
     float trackingprobability;
 

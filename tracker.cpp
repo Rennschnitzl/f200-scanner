@@ -52,10 +52,12 @@ void Tracker::getTransformation(Frame &input)
         }
         cv::imshow("in", TheInputImageCopy);
         cv::imshow("thres", TheBoardDetector.getMarkerDetector().getThresholdedImage());
+        cv::waitKey(1);
     }
 
     aruco::Board detBoard = TheBoardDetector.getDetectedBoard();
     input.transformMarker = createMatrixfromVectors(detBoard.Rvec, detBoard.Tvec);
+    input.transformMarker*input.depth_to_color_transform.inverse();
     input.trackingprobability = probDetect;
 }
 

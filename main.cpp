@@ -42,11 +42,21 @@ using namespace std;
 // DESIGN get rid of code in main
 
 bool next_iteration = false;
+bool save_frame = false;
+bool next_frame = false;
+
 void keyboardEventOccurred (const pcl::visualization::KeyboardEvent& event,
                        void* nothing)
 {
   if (event.getKeySym () == "space" && event.keyDown ())
     next_iteration = true;
+
+  if (event.getKeySym () == "a" && event.keyDown ())
+    save_frame = true;
+
+  if (event.getKeySym () == "n" && event.keyDown ())
+    next_frame = true;
+
 }
 
 float lastx = 0.0, lasty = 0.0, lastz = 0.0;
@@ -176,6 +186,90 @@ pcl::PointCloud<pcl::PointXYZRGBA>::Ptr filterNoColor(pcl::PointCloud<pcl::Point
     return filtered;
 }
 
+bool registerPointClouds(pcl::PointCloud<pcl::PointXYZRGBA>::Ptr target, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr source, Eigen::Affine3f &transform)
+{
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxcloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxcloud2 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+
+    float leafsize = 0.002;
+    pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
+    sor.setDownsampleAllData(true);
+
+    sor.setInputCloud (target);
+    sor.setLeafSize (leafsize,leafsize,leafsize);
+    sor.filter (*voxcloud1);
+
+    sor.setInputCloud (source);
+    sor.setLeafSize (leafsize,leafsize,leafsize);
+    sor.filter (*voxcloud2);
+
+    float weight = 0.0015;
+    pcl::GeneralizedIterativeClosestPoint6D reg = pcl::GeneralizedIterativeClosestPoint6D(weight);
+    //pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
+    //pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
+    reg.setInputSource (voxcloud2);
+    reg.setInputTarget (voxcloud1);
+    reg.setMaxCorrespondenceDistance(0.008);
+    //reg.setEuclideanFitnessEpsilon(1e-8);
+    reg.setMaximumIterations (100);
+    //reg.setTransformationEpsilon (1e-8);
+
+    pcl::console::TicToc time;
+    double icp_time;
+
+    time.tic();
+    // when using generalizedicp, align will not transform the cloud. bug
+    reg.align(*voxcloud2);//,(image2.transformMarker.inverse() * image.transformMarker).matrix());
+    icp_time = time.toc ();
+
+    if (reg.hasConverged ())
+    {
+        std::cout << "has converged:" << reg.hasConverged() << " score: " <<
+                     reg.getFitnessScore() << "in " << icp_time << "ms" << std::endl;
+        std::cout << reg.getFinalTransformation() << std::endl;
+        pcl::transformPointCloud (*voxcloud2, *voxcloud2, reg.getFinalTransformation());
+        pcl::transformPointCloud (*source, *source, reg.getFinalTransformation());
+        Eigen::Matrix4f finalTransform = reg.getFinalTransformation();
+        Eigen::Affine3f transform_tmp (finalTransform);
+        transform = transform_tmp;
+    }
+    else
+    {
+        PCL_ERROR ("\nICP has not converged.\n");
+        return (-1);
+    }
+
+    /// repeat with original cloud
+    reg.setInputSource (source);
+    reg.setInputTarget (target);
+    reg.setMaxCorrespondenceDistance(0.002);
+    //reg.setEuclideanFitnessEpsilon(1e-8);
+    reg.setMaximumIterations (100);
+    //reg.setTransformationEpsilon (1e-8);
+
+    time.tic();
+    // when using generalizedicp, align will not transform the cloud. bug
+    reg.align(*voxcloud2);//,(image2.transformMarker.inverse() * image.transformMarker).matrix());
+    icp_time = time.toc ();
+
+    if (reg.hasConverged ())
+    {
+        std::cout << "has converged:" << reg.hasConverged() << " score: " <<
+                     reg.getFitnessScore() << "in " << icp_time << "ms" << std::endl;
+        std::cout << reg.getFinalTransformation() << std::endl;
+        pcl::transformPointCloud (*voxcloud2, *voxcloud2, reg.getFinalTransformation());
+        pcl::transformPointCloud (*source, *source, reg.getFinalTransformation());
+        Eigen::Matrix4f finalTransform = reg.getFinalTransformation();
+        Eigen::Affine3f transform_tmp (finalTransform);
+        transform = transform_tmp;
+    }
+    else
+    {
+        PCL_ERROR ("\nICP has not converged.\n");
+        return (-1);
+    }
+}
+
 void applyFilterPipeline(Frame &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud_without_outliers, CameraWrapper &cw)
 {
     /// convert a pointcloud
@@ -224,42 +318,38 @@ void applyFilterPipeline(Frame &image, pcl::PointCloud<pcl::PointXYZRGBA>::Ptr c
     pass.setInputCloud (cloud_without_outliers);
     pass.filter (*cloud_without_outliers);
 
-    pcl::transformPointCloud(*cloud_without_outliers, *cloud_without_outliers, image.transformMarker);
+    //pcl::transformPointCloud(*cloud_without_outliers, *cloud_without_outliers, image.transformMarker);
 }
 
 int main()
 {
     CameraWrapper cw(FRAME_RECORD_SIZE);
     Tracker track;
-    track.debugmode = false;
+    track.debugmode = true;
+
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGBA>);
+    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr sum (new pcl::PointCloud<pcl::PointXYZRGBA>);
+
 
     Frame dummy = cw.record();
 
     Frame image = cw.record();
     track.getTransformation(image);
-//    cv::imshow("ir" , image.processedImageIR);
     cv::imshow("color" , image.processedImageRGB);
-//    cv::imshow("depth" , image.processedImageDepth);
-//    cv::imshow("belief", image.belief);
-
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
-
     applyFilterPipeline(image, cloud1, cw);
 
     cv::waitKey(0);
 
+
+
     Frame image2 = cw.record();
     track.getTransformation(image2);
-//    cv::imshow("ir" , image2.processedImageIR);
     cv::imshow("color" , image2.processedImageRGB);
-//    cv::imshow("depth" , image.processedImageDepth);
-//    cv::imshow("belief", image.belief);
-
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr cloud2 (new pcl::PointCloud<pcl::PointXYZRGBA>);
-
     applyFilterPipeline(image2, cloud2, cw);
 
     cv::waitKey(0);
+
 
     //pcl::io::savePCDFileASCII ("test_pcd.pcd", *cloud2);
 
@@ -277,50 +367,23 @@ int main()
 
 
 
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxcloud1 (new pcl::PointCloud<pcl::PointXYZRGBA>);
-    pcl::PointCloud<pcl::PointXYZRGBA>::Ptr voxcloud2 (new pcl::PointCloud<pcl::PointXYZRGBA>);
-
-    float leafsize = 0.002;
-    pcl::VoxelGrid<pcl::PointXYZRGBA> sor;
-    sor.setDownsampleAllData(true);
-
-    sor.setInputCloud (cloud1);
-    sor.setLeafSize (leafsize,leafsize,leafsize);
-    sor.filter (*voxcloud1);
-
-    sor.setInputCloud (cloud2);
-    sor.setLeafSize (leafsize,leafsize,leafsize);
-    sor.filter (*voxcloud2);
-
-    float weight = 0.0015;
-    pcl::GeneralizedIterativeClosestPoint6D reg = pcl::GeneralizedIterativeClosestPoint6D(weight);
-    //pcl::GeneralizedIterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
-    //pcl::IterativeClosestPoint<pcl::PointXYZRGBA, pcl::PointXYZRGBA> reg;
-    reg.setInputSource (voxcloud2);
-    reg.setInputTarget (voxcloud1);
-    reg.setMaxCorrespondenceDistance(0.008);
-    //reg.setEuclideanFitnessEpsilon(1e-8);
-    reg.setMaximumIterations (50);
-    //reg.setTransformationEpsilon (1e-8);
-
-    pcl::console::TicToc time;
-    double icp_time;
-
     /// Display point cloud with normals
     boost::shared_ptr<pcl::visualization::PCLVisualizer> viewer (new pcl::visualization::PCLVisualizer ("3D Viewer"));
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(voxcloud1);
-    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(voxcloud2);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb(cloud1);
+    pcl::visualization::PointCloudColorHandlerRGBField<pcl::PointXYZRGBA> rgb2(cloud2);
     viewer->setBackgroundColor (0, 0, 0);
     viewer->initCameraParameters ();
     viewer->addCoordinateSystem(0.1, "Origin");
     viewer->addCoordinateSystem(0.1, "Cam1");
     viewer->addCoordinateSystem(0.1, "Cam2");
-    viewer->addPointCloud<pcl::PointXYZRGBA>(voxcloud2, rgb2, "frame2");
-    viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
-    viewer->addPointCloud<pcl::PointXYZRGBA>(voxcloud1, rgb, "frame1");
-    viewer->updatePointCloudPose("frame1", image.transformMarker.inverse());
+    viewer->addCoordinateSystem(0.1, "cam1RGB");
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud2, rgb2, "frame2");
+    //viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
+    viewer->addPointCloud<pcl::PointXYZRGBA>(cloud1, rgb, "frame1");
+    //viewer->updatePointCloudPose("frame1", image.transformMarker.inverse());
     viewer->updateCoordinateSystemPose("Cam1", image.transformMarker.inverse());
     viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
+    //viewer->updateCoordinateSystemPose("cam1RGB", image.transformMarker.inverse()*image.depth_to_color_transform);
     //viewer->addPointCloudNormals<pcl::PointXYZRGBA, pcl::Normal> (cloud_without_outliers, cloud_normals, 100, 0.01, "normals");
     //viewer->spin();
     viewer->registerKeyboardCallback (&keyboardEventOccurred, (void*) NULL);
@@ -331,34 +394,38 @@ int main()
 
       if (next_iteration)
       {
-          time.tic();
-          // when using generalizedicp, align will not transform the cloud. bug
-          reg.align(*voxcloud2,(image2.transformMarker.inverse() * image.transformMarker).matrix());
-          icp_time = time.toc ();
+          Eigen::Affine3f transform;
+          registerPointClouds(cloud1, cloud2, transform);
 
-        if (reg.hasConverged ())
-        {
-            std::cout << "has converged:" << reg.hasConverged() << " score: " <<
-                         reg.getFitnessScore() << "in " << icp_time << "ms" << std::endl;
-            std::cout << reg.getFinalTransformation() << std::endl;
-            //pcl::transformPointCloud (*voxcloud2, *voxcloud2, reg.getFinalTransformation());
-            //pcl::transformPointCloud (*cloud2, *cloud2, reg.getFinalTransformation());
-            Eigen::Matrix4f finalTransform = reg.getFinalTransformation();
-            Eigen::Affine3f transform (finalTransform);
-            image2.transformMarker = (transform * image.transformMarker.inverse()).inverse();
-            viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
-            //viewer->updatePointCloud(cloud2, rgb, "frame2");
-            viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
-        }
-        else
-        {
-          PCL_ERROR ("\nICP has not converged.\n");
-          return (-1);
-        }
+          image2.transformMarker = transform * image2.transformMarker;
+          viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
+          viewer->updatePointCloud(cloud2, "frame2");
+          //viewer->updatePointCloud(cloud2, rgb, "frame2");
+          //viewer->updatePointCloudPose("frame2", image2.transformMarker.inverse());
       }
       next_iteration = false;
+      if (next_frame)
+      {
+          Frame image2 = cw.record();
+          track.getTransformation(image2);
+          applyFilterPipeline(image2, cloud2, cw);
+          viewer->updateCoordinateSystemPose("Cam2", image2.transformMarker.inverse());
+          viewer->updatePointCloud(cloud2, "frame2");
+      }
+      next_frame = false;
+      if (save_frame)
+      {
+          *sum += *cloud1;
+          std::cout << "total saved points: " << sum->size() << std::endl;
+          image = image2;
+          *cloud1 = *cloud2;
+          viewer->updateCoordinateSystemPose("Cam1", image.transformMarker.inverse());
+          viewer->updatePointCloud(cloud1, "frame1");
+      }
+      save_frame = false;
     }
 
+    pcl::io::savePCDFileASCII ("test_pcd.pcd", *sum);
     return 0;
 }
 
